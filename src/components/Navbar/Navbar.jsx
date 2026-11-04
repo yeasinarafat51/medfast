@@ -21,8 +21,6 @@ import {
 import useAuth from "../../hooks/useAuth";
 import useCart from "../../hooks/useCart";
 
-import logo from "../../imges/novacare.jpg";
-
 const APK_DOWNLOAD_URL =
   "https://web2apkpro.com/public_download.php?project_id=20811&token=6e0ada7cc4";
 
@@ -107,30 +105,90 @@ function Navbar() {
       {/* =====================================================
           STICKY PREMIUM APP HEADER (TOP BAR)
       ===================================================== */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-xs">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2.5 md:px-6 md:py-3.5">
+      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/95 backdrop-blur-md shadow-xs">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2 md:px-6 md:py-3">
           {/* MOBILE LEFT: DRAWER BUTTON */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-1.5 md:hidden">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg text-slate-700 active:scale-95 transition"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-lg text-slate-800 active:scale-95 transition"
               aria-label="Menu"
             >
               {menuOpen ? <FaTimes /> : <FaBars />}
             </button>
           </div>
 
-          {/* BRAND LOGO */}
+          {/* =====================================================
+              ✦ CORPORATE HIGH-END NOVACARE BRAND LOGO ✦
+          ===================================================== */}
           <NavLink
             to="/"
-            className="flex items-center gap-2 md:flex-1"
+            className="group flex items-center gap-2 md:gap-3 shrink-0 transition active:scale-98"
             onClick={closeMenu}
           >
-            <img
-              src={logo}
-              alt="NovaCare"
-              className="h-10 w-36 rounded-lg object-cover md:h-14 md:w-56"
-            />
+            {/* ১. প্রফেশনাল ডুয়াল-টোন ক্রস ও নোভা ডায়মন্ড এম্ব্লেম */}
+            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 text-white shadow-sm ring-1 ring-emerald-400/30 md:h-10 md:w-10 group-hover:scale-105 group-hover:shadow-md transition-all duration-300">
+              <svg
+                viewBox="0 0 40 40"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 md:h-6 md:w-6"
+                style={{ shapeRendering: "geometricPrecision" }}
+              >
+                {/* Vertical Cross Pillar */}
+                <rect
+                  x="16"
+                  y="5"
+                  width="8"
+                  height="30"
+                  rx="4"
+                  fill="#ffffff"
+                  fillOpacity="0.95"
+                />
+                {/* Horizontal Cross Pillar */}
+                <rect
+                  x="5"
+                  y="16"
+                  width="30"
+                  height="8"
+                  rx="4"
+                  fill="#ffffff"
+                  fillOpacity="0.95"
+                />
+
+                {/* Organic Healing Helix Curve */}
+                <path
+                  d="M 12 12 C 16 8, 24 8, 28 12 C 32 16, 32 24, 28 28 C 24 32, 16 32, 12 28"
+                  stroke="#34d399"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  fill="none"
+                  opacity="0.9"
+                />
+
+                {/* Central Radiant 24k Gold Nova Star */}
+                <path
+                  d="M 20 11 L 22.2 17.8 L 29 20 L 22.2 22.2 L 20 29 L 17.8 22.2 L 11 20 L 17.8 17.8 Z"
+                  fill="#fbbf24"
+                />
+                <circle cx="20" cy="20" r="2" fill="#ffffff" />
+              </svg>
+            </div>
+
+            {/* ২. ব্যালেন্সড কর্পোরেট টাইপোগ্রাফি */}
+            <div className="flex flex-col justify-center leading-none">
+              <div className="flex items-center gap-1">
+                <span className="text-lg font-black tracking-tight text-slate-900 md:text-2xl">
+                  Nova<span className="text-emerald-600">Care</span>
+                </span>
+                <span className="rounded bg-gradient-to-r from-emerald-500/15 to-teal-500/15 border border-emerald-500/30 px-1 py-0.2 text-[8px] font-black uppercase tracking-wider text-emerald-800">
+                  PRO
+                </span>
+              </div>
+              <span className="hidden sm:block text-[9px] font-bold tracking-[0.14em] text-slate-400 uppercase mt-0.5 md:text-[10px]">
+                Health &amp; Pharmaceuticals
+              </span>
+            </div>
           </NavLink>
 
           {/* DESKTOP NAVIGATION */}
@@ -170,7 +228,7 @@ function Navbar() {
                 to="/cart"
                 className="relative mx-1 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 transition"
               >
-                <FaShoppingCart size={19} />
+                <FaShoppingCart size={18} />
                 {cart.length > 0 && (
                   <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-extrabold text-white shadow-xs">
                     {cart.length}
@@ -183,25 +241,25 @@ function Navbar() {
               <div className="flex items-center gap-2 pl-2">
                 <NavLink
                   to="/login"
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
                 >
                   Login
                 </NavLink>
                 <NavLink
                   to="/register"
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+                  className="rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-bold text-white hover:bg-slate-800 transition"
                 >
                   Register
                 </NavLink>
               </div>
             ) : (
               <div className="flex items-center gap-3 pl-2">
-                <span className="max-w-[150px] truncate text-sm font-bold text-slate-700">
+                <span className="max-w-[140px] truncate text-sm font-bold text-slate-700">
                   {user.displayName || user.email}
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-red-700 transition"
+                  className="rounded-xl bg-red-600 px-3.5 py-2 text-sm font-bold text-white shadow-xs hover:bg-red-700 transition"
                 >
                   Logout
                 </button>
@@ -210,25 +268,25 @@ function Navbar() {
           </nav>
 
           {/* MOBILE RIGHT: APP INSTALL + CART */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-1.5 md:hidden">
             <a
               href={APK_DOWNLOAD_URL}
               target="_blank"
               rel="noreferrer"
-              className="flex h-9 items-center gap-1 rounded-xl bg-emerald-600 px-2.5 text-[11px] font-extrabold text-white shadow-xs active:scale-95"
+              className="flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-2 text-[10px] font-extrabold text-white shadow-xs active:scale-95"
             >
-              <FaAndroid className="text-sm" />
+              <FaAndroid className="text-xs" />
               <span>App</span>
             </a>
 
             <NavLink
               to={user ? "/cart" : "/login"}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700 active:scale-95"
               aria-label="Cart"
             >
-              <FaShoppingCart size={19} />
+              <FaShoppingCart size={17} />
               {cart.length > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">
+                <span className="absolute -right-1 -top-1 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold text-white">
                   {cart.length}
                 </span>
               )}
@@ -242,51 +300,61 @@ function Navbar() {
       ===================================================== */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
             onClick={closeMenu}
           />
 
-          {/* Drawer Content */}
           <div className="relative z-10 flex w-72 max-w-[82vw] flex-col bg-white shadow-2xl">
-            {/* Drawer Header / Profile Card */}
-            <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 p-5 text-white">
+            {/* Drawer Header */}
+            <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 p-4 text-white">
               <div className="flex items-center justify-between">
-                <span className="rounded-lg bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-200">
+                <span className="rounded-lg bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-200">
                   NovaCare BD App
                 </span>
                 <button
                   onClick={closeMenu}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white"
                 >
-                  <FaTimes />
+                  <FaTimes className="text-xs" />
                 </button>
               </div>
 
+              {/* Pro Logo in Drawer */}
+              <div className="mt-3 flex items-center gap-2.5 pb-2 border-b border-white/10">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 font-bold text-base">
+                  ✦
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white leading-tight">
+                    Nova<span className="text-emerald-300">Care</span>
+                  </h3>
+                  <p className="text-[9px] text-emerald-200">
+                    Health &amp; Pharmaceuticals
+                  </p>
+                </div>
+              </div>
+
               {user ? (
-                <div className="mt-4 flex items-center gap-3">
-                  <FaUserCircle className="text-4xl text-emerald-300 shrink-0" />
+                <div className="mt-3 flex items-center gap-2.5">
+                  <FaUserCircle className="text-3xl text-emerald-300 shrink-0" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-extrabold text-white">
+                    <p className="truncate text-xs font-extrabold text-white">
                       {user.displayName || "Valued Customer"}
                     </p>
-                    <p className="truncate text-xs text-emerald-200">
+                    <p className="truncate text-[10px] text-emerald-200">
                       {user.email}
                     </p>
                     {role && (
-                      <span className="mt-1 inline-block rounded bg-amber-400 px-2 py-0.5 text-[10px] font-black uppercase text-slate-900">
+                      <span className="mt-0.5 inline-block rounded bg-amber-400 px-1.5 py-0.2 text-[9px] font-black uppercase text-slate-900">
                         {role}
                       </span>
                     )}
                   </div>
                 </div>
               ) : (
-                <div className="mt-4">
-                  <p className="text-sm font-bold text-white">
-                    Welcome to NovaCare BD
-                  </p>
-                  <p className="text-xs text-emerald-200">
+                <div className="mt-2.5">
+                  <p className="text-[11px] text-emerald-200">
                     অর্ডার ট্র্যাক করতে লগইন করুন
                   </p>
                 </div>
@@ -298,18 +366,18 @@ function Navbar() {
               <NavLink
                 to="/"
                 onClick={closeMenu}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
               >
-                <FaHome className="text-base text-emerald-600" />
+                <FaHome className="text-sm text-emerald-600" />
                 <span>Home</span>
               </NavLink>
 
               <NavLink
                 to="/allproduct"
                 onClick={closeMenu}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
               >
-                <FaPills className="text-base text-emerald-600" />
+                <FaPills className="text-sm text-emerald-600" />
                 <span>All Medicines</span>
               </NavLink>
 
@@ -317,9 +385,9 @@ function Navbar() {
                 <NavLink
                   to="/my-orders"
                   onClick={closeMenu}
-                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                  className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
                 >
-                  <FaClipboardList className="text-base text-emerald-600" />
+                  <FaClipboardList className="text-sm text-emerald-600" />
                   <span>My Orders</span>
                 </NavLink>
               )}
@@ -328,9 +396,9 @@ function Navbar() {
                 <NavLink
                   to="/dashboard/all-orders"
                   onClick={closeMenu}
-                  className="flex items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-extrabold text-amber-900 hover:bg-amber-100"
+                  className="flex items-center gap-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs font-extrabold text-amber-900 hover:bg-amber-100"
                 >
-                  <FaTachometerAlt className="text-base text-amber-600" />
+                  <FaTachometerAlt className="text-sm text-amber-600" />
                   <span>Admin Dashboard</span>
                 </NavLink>
               )}
@@ -341,9 +409,9 @@ function Navbar() {
                   onClick={closeMenu}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white shadow-sm hover:bg-emerald-700"
+                  className="flex items-center gap-2.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-xs font-extrabold text-white shadow-xs hover:bg-emerald-700"
                 >
-                  <FaDownload className="text-base" />
+                  <FaDownload className="text-xs" />
                   <span>Download Android App</span>
                 </a>
               </div>
@@ -353,7 +421,7 @@ function Navbar() {
                   <NavLink
                     to="/login"
                     onClick={closeMenu}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
                   >
                     <FaSignInAlt />
                     <span>Login</span>
@@ -362,7 +430,7 @@ function Navbar() {
                   <NavLink
                     to="/register"
                     onClick={closeMenu}
-                    className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-xs font-extrabold text-white hover:bg-slate-800"
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2 text-xs font-extrabold text-white hover:bg-slate-800"
                   >
                     <FaUserPlus />
                     <span>Register</span>
@@ -375,7 +443,7 @@ function Navbar() {
                       handleLogout();
                       closeMenu();
                     }}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-50 py-3 text-sm font-extrabold text-red-600 hover:bg-red-100"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-50 py-2.5 text-xs font-extrabold text-red-600 hover:bg-red-100"
                   >
                     <FaSignOutAlt />
                     <span>Logout</span>
@@ -392,13 +460,11 @@ function Navbar() {
       ===================================================== */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.06)] md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 items-center">
-          {/* 1. Home */}
           <NavLink to="/" className={bottomTabClass} onClick={closeMenu}>
             <FaHome className="text-lg" />
             <span>Home</span>
           </NavLink>
 
-          {/* 2. Medicines */}
           <NavLink
             to="/allproduct"
             className={bottomTabClass}
@@ -408,7 +474,7 @@ function Navbar() {
             <span>Medicines</span>
           </NavLink>
 
-          {/* 3. Center Floating Cart Button */}
+          {/* Center Floating Cart Button */}
           <NavLink
             to={user ? "/cart" : "/login"}
             onClick={closeMenu}
@@ -422,7 +488,6 @@ function Navbar() {
             )}
           </NavLink>
 
-          {/* 4. Orders or App Download */}
           {user ? (
             <NavLink
               to="/my-orders"
@@ -444,7 +509,6 @@ function Navbar() {
             </a>
           )}
 
-          {/* 5. Dashboard / Account */}
           {role === "admin" || role === "super-admin" ? (
             <NavLink
               to="/dashboard/all-orders"

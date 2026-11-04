@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -209,7 +209,6 @@ function AllItemMedicine() {
       return;
     }
 
-    // স্টেট সাথে সাথে ১ হবে
     setCartQuantities((prev) => ({
       ...prev,
       [medicine._id]: 1,
@@ -301,11 +300,23 @@ function AllItemMedicine() {
     }
   };
 
+  // =====================================================
+  // ⚡ শুধুমাত্র স্টক থাকা ওষুধ ফিল্টার করা (stock > 0)
+  // স্টক আউট (stock <= 0) ওষুধগুলো পেজে দেখাবে না;
+  // যখন স্টক আসবে (stock > 0), তখন স্বয়ংক্রিয়ভাবে দেখাবে।
+  // =====================================================
+  const inStockMedicines = useMemo(() => {
+    return medicines.filter((medicine) => {
+      const stock = Number(medicine.stock) || 0;
+      return stock > 0;
+    });
+  }, [medicines]);
+
   const handleSeeMore = () => {
-    setVisibleLimit(medicines.length);
+    setVisibleLimit(inStockMedicines.length);
   };
 
-  const displayedMedicines = medicines.slice(0, visibleLimit);
+  const displayedMedicines = inStockMedicines.slice(0, visibleLimit);
 
   // =====================================================
   // LOADING STATE
@@ -397,9 +408,24 @@ function AllItemMedicine() {
             {selectedCompany ? `Company: ${selectedCompany}` : "All Companies"}
           </p>
           <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 shadow-xs">
-            Showing {displayedMedicines.length} of {medicines.length}
+            Showing {displayedMedicines.length} of {inStockMedicines.length} in
+            stock
           </span>
         </div>
+
+        {/* EMPTY STATE (যদি কোনো ইন-স্টক প্রোডাক্ট না থাকে) */}
+        {displayedMedicines.length === 0 && (
+          <div className="my-8 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <FaCapsules className="mx-auto text-3xl text-teal-600 mb-2" />
+            <h3 className="text-sm font-bold text-slate-700">
+              No in-stock medicines found
+            </h3>
+            <p className="mt-1 text-xs text-slate-400">
+              Currently all medicines in this criteria are out of stock. They
+              will appear as soon as restocked.
+            </p>
+          </div>
+        )}
 
         {/* =================================================
             📱 MOBILE 3-COLUMN GRID (কার্ড ১ ও ২ এর হুবহু ডিজাইন)
@@ -407,7 +433,6 @@ function AllItemMedicine() {
         <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:hidden">
           {displayedMedicines.map((medicine) => {
             const stock = Number(medicine.stock) || 0;
-            const isOutOfStock = stock <= 0;
             const sellingPrice = Number(medicine.sellingPrice) || 0;
             const mrpPrice = Number(medicine.mrpePrice) || 0;
             const discount =
@@ -457,13 +482,6 @@ function AllItemMedicine() {
                         e.currentTarget.src = medisin;
                       }}
                     />
-                    {isOutOfStock && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                        <span className="rounded bg-red-600 px-1 py-0.5 text-[7px] font-black text-white">
-                          STOCK OUT
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   {/* TITLE */}
@@ -488,16 +506,8 @@ function AllItemMedicine() {
                     ⚡ ACTION: ADD TO CART OR QUANTITY STEPPER (card1 vs card2)
                 ===================================================== */}
                 <div className="mt-2 w-full">
-                  {isOutOfStock ? (
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full rounded-lg bg-slate-200 py-1.5 text-[9px] font-bold text-slate-400"
-                    >
-                      Stock Out
-                    </button>
-                  ) : currentQty === 0 ? (
-                    /* card1.jpg: প্রাথমিক 'Add to Cart' বাটন */
+                  {currentQty === 0 ? (
+                    /* card1: প্রাথমিক 'Add to Cart' বাটন */
                     <button
                       type="button"
                       onClick={() => handleAddToCart(medicine)}
@@ -506,7 +516,7 @@ function AllItemMedicine() {
                       Add to Cart
                     </button>
                   ) : (
-                    /* card2.jpg: ক্লিক করার পর [- 1 +] বাটন */
+                    /* card2: ক্লিক করার পর [- 1 +] বাটন */
                     <div className="flex h-7 w-full items-center justify-between rounded-lg border border-slate-300 bg-white shadow-2xs overflow-hidden">
                       {/* MINUS */}
                       <button
@@ -547,7 +557,6 @@ function AllItemMedicine() {
         <div className="hidden gap-5 lg:grid lg:grid-cols-4">
           {displayedMedicines.map((medicine) => {
             const stock = Number(medicine.stock) || 0;
-            const isOutOfStock = stock <= 0;
             const sellingPrice = Number(medicine.sellingPrice) || 0;
             const mrpPrice = Number(medicine.mrpePrice) || 0;
             const discount =
@@ -606,15 +615,7 @@ function AllItemMedicine() {
                 </div>
 
                 <div className="p-4 pt-0">
-                  {isOutOfStock ? (
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full rounded-xl bg-slate-300 py-3 text-sm font-bold text-slate-500"
-                    >
-                      Out of Stock
-                    </button>
-                  ) : currentQty === 0 ? (
+                  {currentQty === 0 ? (
                     <button
                       type="button"
                       onClick={() => handleAddToCart(medicine)}
@@ -652,7 +653,7 @@ function AllItemMedicine() {
         </div>
 
         {/* SEE MORE */}
-        {visibleLimit < medicines.length && (
+        {visibleLimit < inStockMedicines.length && (
           <div className="mt-8 flex flex-col items-center justify-center pb-6">
             <button
               type="button"
@@ -663,7 +664,7 @@ function AllItemMedicine() {
               <FaChevronDown className="transition-transform duration-300 group-hover:translate-y-0.5 text-xs" />
             </button>
             <p className="mt-1.5 text-[10px] text-slate-400 sm:text-xs">
-              Click to view all {medicines.length} medicines
+              Click to view all {inStockMedicines.length} in-stock medicines
             </p>
           </div>
         )}
