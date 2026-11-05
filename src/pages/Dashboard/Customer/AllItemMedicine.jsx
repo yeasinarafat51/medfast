@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
-
+// frontpage
 import {
   FaMinus,
   FaPlus,
@@ -403,7 +403,7 @@ function AllItemMedicine() {
         </div>
 
         {/* FILTER COUNT */}
-        <div className="mb-3 flex items-center justify-between rounded-lg border border-teal-100 bg-teal-50/70 px-3 py-2">
+        {/* <div className="mb-3 flex items-center justify-between rounded-lg border border-teal-100 bg-teal-50/70 px-3 py-2">
           <p className="text-[11px] font-semibold text-teal-900">
             {selectedCompany ? `Company: ${selectedCompany}` : "All Companies"}
           </p>
@@ -411,7 +411,7 @@ function AllItemMedicine() {
             Showing {displayedMedicines.length} of {inStockMedicines.length} in
             stock
           </span>
-        </div>
+        </div> */}
 
         {/* EMPTY STATE (যদি কোনো ইন-স্টক প্রোডাক্ট না থাকে) */}
         {displayedMedicines.length === 0 && (
@@ -663,9 +663,6 @@ function AllItemMedicine() {
               <span>See More</span>
               <FaChevronDown className="transition-transform duration-300 group-hover:translate-y-0.5 text-xs" />
             </button>
-            <p className="mt-1.5 text-[10px] text-slate-400 sm:text-xs">
-              Click to view all {inStockMedicines.length} in-stock medicines
-            </p>
           </div>
         )}
       </div>
