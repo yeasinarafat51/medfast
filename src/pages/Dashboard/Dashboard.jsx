@@ -553,12 +553,12 @@ function Dashboard() {
         ) : (
           <div className="mx-auto grid max-w-md grid-cols-3 items-center">
             <NavLink
-              to="/dashboard/all-orders"
+              to="/dashboard/order-list"
               className={mobileTabClass}
               onClick={closeSidebar}
             >
               <FaShoppingCart className="text-base" />
-              <span>All Orders</span>
+              <span>Order</span>
             </NavLink>
 
             <NavLink to="/" className={mobileTabClass} onClick={closeSidebar}>
