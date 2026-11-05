@@ -208,7 +208,7 @@ function Navbar() {
             )}
 
             {(role === "admin" || role === "super-admin") && (
-              <NavLink to="/dashboard/all-orders" className={navLinkClass}>
+              <NavLink to="/dashboard/order-list" className={navLinkClass}>
                 Dashboard
               </NavLink>
             )}
@@ -394,7 +394,7 @@ function Navbar() {
 
               {(role === "admin" || role === "super-admin") && (
                 <NavLink
-                  to="/dashboard/all-orders"
+                  to="/dashboard/order-list"
                   onClick={closeMenu}
                   className="flex items-center gap-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs font-extrabold text-amber-900 hover:bg-amber-100"
                 >
@@ -511,7 +511,7 @@ function Navbar() {
 
           {role === "admin" || role === "super-admin" ? (
             <NavLink
-              to="/dashboard/all-orders"
+              to="/dashboard/order-list"
               className={bottomTabClass}
               onClick={closeMenu}
             >

@@ -32,6 +32,7 @@ import SpecialOfferManagement from "../pages/SpecialOfferManagement";
 import TotalOrders from "../pages/Dashboard/Admin/TotalOrders";
 import HeadlineManagement from "../pages/Dashboard/Admin/HeadlineManagement";
 import MrpCalculator from "../pages/Dashboard/Admin/MrpCalculator";
+import OrderList from "../pages/Dashboard/Admin/OrderList";
 // import Unauthorized from "./pages/Unauthorized";
 // import Unauthorized from "./pages/Unauthorized";
 const router = createBrowserRouter([
@@ -175,6 +176,10 @@ const router = createBrowserRouter([
       {
         path: "total-orders",
         element: <TotalOrders />,
+      },
+      {
+        path: "order-list",
+        element: <OrderList />,
       },
       {
         path: "headlines",

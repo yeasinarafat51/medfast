@@ -1,8 +1,7 @@
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import Swal from "sweetalert2";
 import {
-  FaCalendarDay,
   FaCalendarAlt,
   FaShoppingBag,
   FaSyncAlt,
@@ -12,65 +11,127 @@ import {
   FaChevronUp,
   FaFileInvoice,
   FaCheckCircle,
-  FaClock,
-  FaUsers,
   FaBoxes,
   FaPhoneAlt,
+  FaChartLine,
+  FaArrowUp,
+  FaArrowDown,
+  FaFilter,
+  FaTimes,
+  FaShieldAlt,
 } from "react-icons/fa";
+
+// Dashboard.jsx এর মতো হুবহু useAuth হুক
+import useAuth from "../../../hooks/useAuth";
 
 const API_URL = (
   import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
 ).trim();
 
-const ORDERS_CACHE_KEY = "novacare_orders_cache_v1";
+const CACHE_KEY = "novacare_admin_orders_cache_v3";
 
-function TotalOrders() {
-  // ১. ক্যাশ থেকে ০ সেকেন্ডে লোড + ব্যাকগ্রাউন্ড সিঙ্ক
+export default function TotalOrders() {
+  const { user } = useAuth(); // Dashboard থেকে লগইন করা ইউজার তথ্য
+
   const [orders, setOrders] = useState(() => {
     try {
-      const saved = localStorage.getItem(ORDERS_CACHE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      // ignore
     }
+    return [];
   });
 
-  const [loading, setLoading] = useState(() => {
-    return !localStorage.getItem(ORDERS_CACHE_KEY);
-  });
+  const [loading, setLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // ট্যাব: "daily" (প্রতিদিনের মোট অর্ডার) | "monthly" (প্রতি মাসের মোট অর্ডার)
-  const [viewTab, setViewTab] = useState("daily");
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  const [expandedDayKey, setExpandedDayKey] = useState(null);
-  const [expandedMonthKey, setExpandedMonthKey] = useState(null);
+  // টাইম রেঞ্জ ফিল্টার (ডিফল্ট: বিগত ৪ মাস)
+  const [timeRange, setTimeRange] = useState("last-4-months"); // 'last-4-months' | 'last-3-months' | 'current-month' | 'all-time'
+  const [activeTab, setActiveTab] = useState("monthly"); // 'monthly' | 'orders'
+  const [expandedMonths, setExpandedMonths] = useState({});
 
-  const loadOrders = async () => {
+  // =========================================================================
+  // 1. DASHBOARD AUTH TOKEN সহ MONGODB থেকে অর্ডার লোড
+  // =========================================================================
+  const fetchOrders = async (showToast = false) => {
     try {
-      if (orders.length === 0) {
-        setLoading(true);
-      } else {
-        setIsSyncing(true);
+      setIsSyncing(true);
+      if (orders.length === 0) setLoading(true);
+
+      // Dashboard.jsx এর মতো Firebase ID Token সংগ্রহ
+      const headers = {};
+      if (user) {
+        try {
+          const token =
+            typeof user.getIdToken === "function"
+              ? await user.getIdToken()
+              : "";
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        } catch (tokenErr) {
+          console.warn("Token fetch failed:", tokenErr);
+        }
       }
 
-      const res = await axios.get(`${API_URL}/api/orders`);
+      const res = await axios.get(`${API_URL}/api/orders`, {
+        headers,
+        timeout: 20000,
+      });
 
+      let fetched = [];
       if (res.data?.success && Array.isArray(res.data.orders)) {
-        const fetched = res.data.orders;
+        fetched = res.data.orders;
+      } else if (Array.isArray(res.data)) {
+        fetched = res.data;
+      } else if (Array.isArray(res.data?.orders)) {
+        fetched = res.data.orders;
+      }
+
+      if (fetched.length > 0) {
         setOrders(fetched);
         try {
-          localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(fetched));
-        } catch {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(fetched));
+        } catch (err) {
           // ignore
         }
-      } else if (Array.isArray(res.data)) {
-        setOrders(res.data);
+
+        if (showToast) {
+          Swal.fire({
+            icon: "success",
+            title: "অর্ডার লোড সফল!",
+            text: `MongoDB থেকে মোট ${fetched.length} টি অর্ডারের ডেটা পাওয়া গেছে।`,
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+      } else {
+        if (showToast) {
+          Swal.fire({
+            icon: "info",
+            title: "কোনো অর্ডার পাওয়া যায়নি",
+            text: "আপনার MongoDB ডাটাবেজে এই মুহূর্তে কোনো অর্ডার নেই।",
+          });
+        }
       }
     } catch (error) {
-      console.error("Failed to load total orders:", error);
+      console.error("Orders Load Error:", error);
+      if (showToast) {
+        Swal.fire({
+          icon: "error",
+          title: "সার্ভার এরর",
+          text:
+            error.response?.data?.message ||
+            "অর্ডার লোড করতে সমস্যা হচ্ছে। রেন্ডার সার্ভার জেগে উঠছে কি না চেক করুন।",
+        });
+      }
     } finally {
       setLoading(false);
       setIsSyncing(false);
@@ -78,67 +139,96 @@ function TotalOrders() {
   };
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    fetchOrders();
+  }, [user]);
 
   // =========================================================================
-  // হেল্পার: অর্ডারের আইটেম, মোট পিস এবং মোট টাকা বের করা
+  // 2. MONGODB ফিল্ড এক্সট্রাক্ট হেল্পার (ROBUST MONGODB SCHEMA EXTRACTORS)
   // =========================================================================
+  const getOrderDate = (order) => {
+    if (!order) return new Date();
+    if (order.orderDate) {
+      const d = new Date(order.orderDate);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (order.createdAt) {
+      const d = new Date(order.createdAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (order.date) {
+      const d = new Date(order.date);
+      if (!isNaN(d.getTime())) return d;
+    }
+    // MongoDB ObjectId থেকে স্বয়ংক্রিয় টাইমস্ট্যাম্প রিড
+    if (order._id && typeof order._id === "string" && order._id.length === 24) {
+      try {
+        const timestamp = parseInt(order._id.substring(0, 8), 16) * 1000;
+        const d = new Date(timestamp);
+        if (!isNaN(d.getTime())) return d;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return new Date();
+  };
+
+  const getOrderAmount = (order) => {
+    if (!order) return 0;
+    const grand = Number(
+      order.grandTotal ??
+        order.totalPrice ??
+        order.totalAmount ??
+        order.subtotal ??
+        0,
+    );
+    if (grand > 0) return grand;
+
+    const items = getOrderItems(order);
+    if (items.length > 0) {
+      return items.reduce((sum, it) => {
+        const line = Number(
+          it.totalPrice ??
+            Number(it.unitPrice || it.sellingPrice || 0) *
+              Number(it.quantity || 1),
+        );
+        return sum + (isNaN(line) ? 0 : line);
+      }, 0);
+    }
+    return 0;
+  };
+
   const getOrderItems = (order) => {
-    return Array.isArray(order?.items)
-      ? order.items.filter((it) => Number(it.quantity || 0) > 0)
-      : [];
+    if (!order) return [];
+    if (Array.isArray(order.items) && order.items.length > 0)
+      return order.items;
+    if (Array.isArray(order.cart) && order.cart.length > 0) return order.cart;
+    return [];
   };
 
   const getOrderUnits = (order) => {
     const items = getOrderItems(order);
     if (items.length > 0) {
-      return items.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+      return items.reduce((sum, it) => sum + Number(it.quantity || 1), 0);
     }
-    return Number(order?.quantity || 0);
+    return Number(order?.quantity || 1);
   };
 
-  const getOrderAmount = (order) => {
-    const grand = Number(order?.grandTotal || 0);
-    if (grand > 0) return grand;
-    return getOrderItems(order).reduce((sum, it) => {
-      const unit = Number(it.unitPrice || it.sellingPrice || 0);
-      const qty = Number(it.quantity || 0);
-      return sum + (Number(it.totalPrice) || unit * qty);
-    }, 0);
-  };
-
-  // =========================================================================
-  // ২:০০ PM -> ২:০০ PM কাস্টম বিজনেস ডে সাইকেল
-  // =========================================================================
-  const getDayAndMonthInfo = (dateString) => {
-    const d = new Date(dateString || Date.now());
+  // ২:০০ PM -> ২:০০ PM হিসাব চক্র
+  const getDayAndMonthInfo = (order) => {
+    const d = getOrderDate(order);
     const cycleStart = new Date(d);
+
     if (d.getHours() < 14) {
       cycleStart.setDate(cycleStart.getDate() - 1);
     }
     cycleStart.setHours(14, 0, 0, 0);
 
-    const cycleEnd = new Date(cycleStart);
-    cycleEnd.setDate(cycleEnd.getDate() + 1);
+    const year = cycleStart.getFullYear();
+    const month = String(cycleStart.getMonth() + 1).padStart(2, "0");
+    const day = String(cycleStart.getDate()).padStart(2, "0");
 
-    const dayKey = cycleStart.toISOString().split("T")[0];
-    const monthKey = `${cycleStart.getFullYear()}-${String(
-      cycleStart.getMonth() + 1,
-    ).padStart(2, "0")}`;
-
-    const formatShortDate = (dt) =>
-      dt.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-
-    const dayTitle = formatShortDate(cycleStart);
-    const cycleLabel = `${formatShortDate(
-      cycleStart,
-    )} 2:00 PM → ${formatShortDate(cycleEnd)} 2:00 PM`;
-
+    const dayKey = `${year}-${month}-${day}`;
+    const monthKey = `${year}-${month}`;
     const monthLabel = cycleStart.toLocaleDateString("en-US", {
       month: "long",
       year: "numeric",
@@ -146,853 +236,767 @@ function TotalOrders() {
 
     return {
       dayKey,
-      dayTitle,
-      cycleLabel,
-      cycleStartMs: cycleStart.getTime(),
       monthKey,
       monthLabel,
-      monthStartMs: new Date(
-        cycleStart.getFullYear(),
-        cycleStart.getMonth(),
-        1,
-      ).getTime(),
+      cycleDateObj: cycleStart,
     };
   };
 
   // =========================================================================
-  // প্রতিদিনের মোট অর্ডার ও প্রতি মাসের মোট অর্ডার প্রসেসিং
+  // 3. টাইম রেঞ্জ ফিল্টারিং (বিগত ৩-৪ মাস ইত্যাদি)
   // =========================================================================
-  const { dailyReports, monthlyReports, overallStats } = useMemo(() => {
-    // শুধুমাত্র ভ্যালিড অর্ডার (Cancelled ও সম্পূর্ণ রিটার্ন হওয়া অর্ডার বাদে)
-    const validOrders = orders.filter((o) => {
-      const items = getOrderItems(o);
-      const total = getOrderAmount(o);
-      const isCancelled =
-        String(o.orderStatus || "").toLowerCase() === "cancelled";
-      return !isCancelled && items.length > 0 && total > 0;
+  const filteredOrders = useMemo(() => {
+    const now = new Date();
+
+    return orders.filter((order) => {
+      const orderTime = getOrderDate(order).getTime();
+
+      // Time Range Filter
+      if (timeRange === "current-month") {
+        const startOfCurrentMonth = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1,
+        ).getTime();
+        if (orderTime < startOfCurrentMonth) return false;
+      } else if (timeRange === "last-3-months") {
+        const startOf3Months = new Date(
+          now.getFullYear(),
+          now.getMonth() - 2,
+          1,
+        ).getTime();
+        if (orderTime < startOf3Months) return false;
+      } else if (timeRange === "last-4-months") {
+        const startOf4Months = new Date(
+          now.getFullYear(),
+          now.getMonth() - 3,
+          1,
+        ).getTime();
+        if (orderTime < startOf4Months) return false;
+      }
+
+      // Status Filter
+      if (statusFilter !== "all") {
+        const st = String(
+          order.orderStatus || order.status || "",
+        ).toLowerCase();
+        if (st !== statusFilter.toLowerCase()) return false;
+      }
+
+      // Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const name = String(
+          order.customerName || order.name || "",
+        ).toLowerCase();
+        const phone = String(order.phone || "").toLowerCase();
+        const invoice = String(
+          order.invoiceNo || order._id || "",
+        ).toLowerCase();
+        if (!name.includes(q) && !phone.includes(q) && !invoice.includes(q))
+          return false;
+      }
+
+      return true;
+    });
+  }, [orders, timeRange, statusFilter, searchQuery]);
+
+  // =========================================================================
+  // 4. এক্সিকিউটিভ মেট্রিক্স (TOTAL SALES, ORDERS, UNITS, RATE)
+  // =========================================================================
+  const executiveKPIs = useMemo(() => {
+    let totalSales = 0;
+    let totalItems = 0;
+    let completedCount = 0;
+
+    filteredOrders.forEach((order) => {
+      totalSales += getOrderAmount(order);
+      totalItems += getOrderUnits(order);
+      const st = String(order.orderStatus || "").toLowerCase();
+      if (st === "completed" || st === "delivered") {
+        completedCount++;
+      }
     });
 
-    const daysMap = {};
-    const monthsMap = {};
-    const allCustomersSet = new Set();
-
-    let allTimeOrders = 0;
-    let allTimeRevenue = 0;
-    let allTimeUnits = 0;
-    let allTimeCompleted = 0;
-    let allTimePending = 0;
-
-    validOrders.forEach((order) => {
-      const {
-        dayKey,
-        dayTitle,
-        cycleLabel,
-        cycleStartMs,
-        monthKey,
-        monthLabel,
-        monthStartMs,
-      } = getDayAndMonthInfo(order.orderDate || order.createdAt);
-
-      const amount = getOrderAmount(order);
-      const units = getOrderUnits(order);
-      const status = String(order.orderStatus || "Pending").toLowerCase();
-      const isCompleted = status === "completed" || status === "delivered";
-      const customerKey = (
-        order.phone ||
-        order.customerEmail ||
-        order.customerName ||
-        order._id
-      )
-        .toString()
-        .toLowerCase()
-        .trim();
-
-      allTimeOrders += 1;
-      allTimeRevenue += amount;
-      allTimeUnits += units;
-      allCustomersSet.add(customerKey);
-
-      if (isCompleted) {
-        allTimeCompleted += 1;
-      } else {
-        allTimePending += 1;
-      }
-
-      // ১. প্রতিদিনের গ্রুপ (Daily Report)
-      if (!daysMap[dayKey]) {
-        daysMap[dayKey] = {
-          dayKey,
-          dayTitle,
-          cycleLabel,
-          startTime: cycleStartMs,
-          monthKey,
-          monthLabel,
-          totalOrders: 0,
-          totalAmount: 0,
-          totalUnits: 0,
-          completedCount: 0,
-          pendingCount: 0,
-          customerSet: new Set(),
-          ordersList: [],
-        };
-      }
-
-      daysMap[dayKey].totalOrders += 1;
-      daysMap[dayKey].totalAmount += amount;
-      daysMap[dayKey].totalUnits += units;
-      daysMap[dayKey].customerSet.add(customerKey);
-      if (isCompleted) {
-        daysMap[dayKey].completedCount += 1;
-      } else {
-        daysMap[dayKey].pendingCount += 1;
-      }
-      daysMap[dayKey].ordersList.push(order);
-
-      // ২. প্রতি মাসের গ্রুপ (Monthly Report)
-      if (!monthsMap[monthKey]) {
-        monthsMap[monthKey] = {
-          monthKey,
-          monthLabel,
-          startTime: monthStartMs,
-          totalOrders: 0,
-          totalAmount: 0,
-          totalUnits: 0,
-          completedCount: 0,
-          pendingCount: 0,
-          activeDaysSet: new Set(),
-          customerSet: new Set(),
-          dailyMap: {},
-        };
-      }
-
-      monthsMap[monthKey].totalOrders += 1;
-      monthsMap[monthKey].totalAmount += amount;
-      monthsMap[monthKey].totalUnits += units;
-      monthsMap[monthKey].activeDaysSet.add(dayKey);
-      monthsMap[monthKey].customerSet.add(customerKey);
-      if (isCompleted) {
-        monthsMap[monthKey].completedCount += 1;
-      } else {
-        monthsMap[monthKey].pendingCount += 1;
-      }
-
-      if (!monthsMap[monthKey].dailyMap[dayKey]) {
-        monthsMap[monthKey].dailyMap[dayKey] = {
-          dayKey,
-          dayTitle,
-          cycleLabel,
-          startTime: cycleStartMs,
-          totalOrders: 0,
-          totalAmount: 0,
-          totalUnits: 0,
-          uniqueCustomers: 0,
-          customerSet: new Set(),
-        };
-      }
-      monthsMap[monthKey].dailyMap[dayKey].totalOrders += 1;
-      monthsMap[monthKey].dailyMap[dayKey].totalAmount += amount;
-      monthsMap[monthKey].dailyMap[dayKey].totalUnits += units;
-      monthsMap[monthKey].dailyMap[dayKey].customerSet.add(customerKey);
-    });
-
-    const sortedDays = Object.values(daysMap)
-      .map((d) => ({
-        ...d,
-        uniqueCustomers: d.customerSet.size,
-        ordersList: d.ordersList.sort(
-          (a, b) =>
-            new Date(b.orderDate || b.createdAt || 0) -
-            new Date(a.orderDate || a.createdAt || 0),
-        ),
-      }))
-      .sort((a, b) => b.startTime - a.startTime);
-
-    const sortedMonths = Object.values(monthsMap)
-      .map((m) => ({
-        ...m,
-        activeDaysCount: m.activeDaysSet.size,
-        uniqueCustomers: m.customerSet.size,
-        daysBreakdown: Object.values(m.dailyMap)
-          .map((d) => ({
-            ...d,
-            uniqueCustomers: d.customerSet.size,
-          }))
-          .sort((a, b) => b.startTime - a.startTime),
-      }))
-      .sort((a, b) => b.startTime - a.startTime);
-
-    // আজকের এবং চলতি মাসের ইনফো
-    const todayInfo = getDayAndMonthInfo(new Date().toISOString());
-    const todayReport = daysMap[todayInfo.dayKey] || {
-      totalOrders: 0,
-      totalAmount: 0,
-      totalUnits: 0,
-      uniqueCustomers: 0,
-    };
-    const currentMonthReport = monthsMap[todayInfo.monthKey] || {
-      monthLabel: todayInfo.monthLabel,
-      totalOrders: 0,
-      totalAmount: 0,
-      totalUnits: 0,
-      activeDaysCount: 0,
-    };
+    const totalOrdersCount = filteredOrders.length;
+    const avgOrderValue =
+      totalOrdersCount > 0 ? Math.round(totalSales / totalOrdersCount) : 0;
+    const completionRate =
+      totalOrdersCount > 0
+        ? Math.round((completedCount / totalOrdersCount) * 100)
+        : 0;
 
     return {
-      dailyReports: sortedDays,
-      monthlyReports: sortedMonths,
-      overallStats: {
-        allTimeOrders,
-        allTimeRevenue,
-        allTimeUnits,
-        allTimeCustomers: allCustomersSet.size,
-        allTimeCompleted,
-        allTimePending,
-        todayOrders: todayReport.totalOrders || 0,
-        todayRevenue: todayReport.totalAmount || 0,
-        todayUnits: todayReport.totalUnits || 0,
-        thisMonthLabel: currentMonthReport.monthLabel || todayInfo.monthLabel,
-        thisMonthOrders: currentMonthReport.totalOrders || 0,
-        thisMonthRevenue: currentMonthReport.totalAmount || 0,
-        thisMonthDays: currentMonthReport.activeDaysSet
-          ? currentMonthReport.activeDaysSet.size
-          : 0,
-      },
+      totalSales,
+      totalOrdersCount,
+      totalItems,
+      avgOrderValue,
+      completedCount,
+      completionRate,
     };
-  }, [orders]);
+  }, [filteredOrders]);
 
-  // ফিল্টার করা প্রতিদিনের রিপোর্ট
-  const filteredDailyReports = useMemo(() => {
-    return dailyReports.filter((day) => {
-      if (
-        selectedMonthFilter !== "all" &&
-        day.monthKey !== selectedMonthFilter
-      ) {
-        return false;
+  // =========================================================================
+  // 5. প্রতি মাসের আলাদা আলাদা বিক্রয় হিসাব (MONTH-BY-MONTH)
+  // =========================================================================
+  const monthlyReports = useMemo(() => {
+    const monthMap = {};
+
+    filteredOrders.forEach((order) => {
+      const { monthKey, monthLabel, dayKey } = getDayAndMonthInfo(order);
+
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = {
+          monthKey,
+          monthLabel,
+          totalSales: 0,
+          orderCount: 0,
+          completedCount: 0,
+          customerSet: new Set(),
+          daysMap: {},
+        };
       }
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase().trim();
-      const dateMatch =
-        day.dayTitle.toLowerCase().includes(q) ||
-        day.cycleLabel.toLowerCase().includes(q) ||
-        day.monthLabel.toLowerCase().includes(q);
-      const custMatch = day.ordersList.some(
-        (o) =>
-          (o.customerName || "").toLowerCase().includes(q) ||
-          (o.phone || "").toLowerCase().includes(q),
-      );
-      return dateMatch || custMatch;
-    });
-  }, [dailyReports, selectedMonthFilter, searchQuery]);
 
-  const formatMoney = (val) =>
-    Number(val || 0).toLocaleString("en-BD", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      const m = monthMap[monthKey];
+      const amount = getOrderAmount(order);
+      m.totalSales += amount;
+      m.orderCount += 1;
+
+      const st = String(order.orderStatus || "").toLowerCase();
+      if (st === "completed" || st === "delivered") {
+        m.completedCount++;
+      }
+
+      const custKey =
+        order.phone || order.customerEmail || order.customerName || order._id;
+      if (custKey) m.customerSet.add(custKey);
+
+      if (!m.daysMap[dayKey]) {
+        m.daysMap[dayKey] = {
+          dayKey,
+          sales: 0,
+          orderCount: 0,
+          orders: [],
+        };
+      }
+      m.daysMap[dayKey].sales += amount;
+      m.daysMap[dayKey].orderCount += 1;
+      m.daysMap[dayKey].orders.push(order);
     });
 
-  if (loading && orders.length === 0) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-600"></div>
-          <h2 className="text-xl font-black text-slate-800">
-            Loading Daily & Monthly Orders...
-          </h2>
-        </div>
-      </div>
-    );
-  }
+    const sorted = Object.keys(monthMap)
+      .sort((a, b) => b.localeCompare(a))
+      .map((key) => {
+        const item = monthMap[key];
+        const sortedDays = Object.values(item.daysMap).sort((a, b) =>
+          b.dayKey.localeCompare(a.dayKey),
+        );
+
+        return {
+          ...item,
+          customerCount: item.customerSet.size,
+          days: sortedDays,
+        };
+      });
+
+    // Month-over-Month Growth %
+    for (let i = 0; i < sorted.length; i++) {
+      const current = sorted[i];
+      const prev = sorted[i + 1];
+      if (prev && prev.totalSales > 0) {
+        const diff = current.totalSales - prev.totalSales;
+        current.growthPercent = Math.round((diff / prev.totalSales) * 100);
+      } else {
+        current.growthPercent = null;
+      }
+
+      current.sharePercent =
+        executiveKPIs.totalSales > 0
+          ? Math.round((current.totalSales / executiveKPIs.totalSales) * 100)
+          : 0;
+    }
+
+    return sorted;
+  }, [filteredOrders, executiveKPIs.totalSales]);
+
+  const toggleMonth = (mKey) => {
+    setExpandedMonths((prev) => ({
+      ...prev,
+      [mKey]: !prev[mKey],
+    }));
+  };
 
   return (
-    <div className="mx-auto max-w-7xl p-2 sm:p-5">
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-800">
-              Daily & Monthly Order Tracker
-            </span>
-            {isSyncing && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-600 border border-blue-200">
-                <FaSyncAlt className="animate-spin" size={9} />
-                Syncing...
-              </span>
-            )}
+    <div className="mx-auto max-w-7xl space-y-6">
+      {/* ===================================================================
+          1. HEADER BANNER
+      =================================================================== */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 p-6 text-white shadow-xl">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30 mb-2">
+              <FaShieldAlt />
+              <span>Admin Verified MongoDB Analytics</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              বিগত ৩-৪ মাসের সার্বিক বিক্রয় রিপোর্ট (Total Orders &amp; Sales)
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-emerald-100/80">
+              সার্বিক মোট বিক্রি, প্রতি মাসের আয় ও দৈনিক ২:০০ PM হিসাব চক্র।
+            </p>
           </div>
-          <h1 className="mt-1.5 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-            Total Order Report (প্রতিদিন ও প্রতি মাস)
-          </h1>
-          <p className="text-xs text-slate-500">
-            প্রতিদিনের মোট অর্ডার সংখ্যা এবং প্রতি মাসের মোট অর্ডার ও বিক্রির
-            পূর্ণাঙ্গ হিসাব
+
+          {/* Time Range Selector & Sync Button */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-2xl bg-white/10 p-1.5 backdrop-blur-md border border-white/15">
+              <FaFilter className="text-emerald-300 ml-2 text-xs" />
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="bg-transparent text-white text-xs font-bold px-2 py-1.5 focus:outline-none cursor-pointer rounded-xl"
+              >
+                <option
+                  value="last-4-months"
+                  className="text-slate-900 font-semibold"
+                >
+                  বিগত ৪ মাসের বিক্রয় (Last 4 Months)
+                </option>
+                <option
+                  value="last-3-months"
+                  className="text-slate-900 font-semibold"
+                >
+                  বিগত ৩ মাসের বিক্রয় (Last 3 Months)
+                </option>
+                <option
+                  value="current-month"
+                  className="text-slate-900 font-semibold"
+                >
+                  চলতি মাসের বিক্রয় (Current Month)
+                </option>
+                <option
+                  value="all-time"
+                  className="text-slate-900 font-semibold"
+                >
+                  সকল সময়ের বিক্রয় (All Time)
+                </option>
+              </select>
+            </div>
+
+            <button
+              onClick={() => fetchOrders(true)}
+              disabled={isSyncing}
+              className="flex items-center gap-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2.5 text-xs shadow-md transition active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              <FaSyncAlt className={isSyncing ? "animate-spin" : ""} />
+              <span>{isSyncing ? "সিঙ্ক হচ্ছে..." : "MongoDB রিফ্রেশ"}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================================================
+          2. 4 EXECUTIVE KPI CARDS
+      =================================================================== */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Card 1: Total Sales */}
+        <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              সর্বমোট বিক্রয় (Total Sales)
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 font-black text-lg">
+              ৳
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black text-slate-900">
+              ৳ {executiveKPIs.totalSales.toLocaleString()}
+            </span>
+          </div>
+          <p className="mt-2 text-[11px] font-medium text-slate-500 flex items-center gap-1">
+            <span className="text-emerald-600 font-bold">✓ নিট বিক্রয়</span> ·{" "}
+            {timeRange}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={loadOrders}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50"
-          >
-            <FaSyncAlt
-              className={isSyncing ? "animate-spin text-emerald-600" : ""}
-            />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800"
-          >
-            <FaPrint className="text-emerald-400" />
-            <span>Print Report</span>
-          </button>
-        </div>
-      </div>
-
-      {/* =====================================================
-          4 PREMIUM SUMMARY CARDS (TODAY, THIS MONTH, ALL-TIME)
-      ===================================================== */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* 1. TODAY'S TOTAL ORDERS */}
-        <div className="rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-5 text-white shadow-lg">
+        {/* Card 2: Total Orders */}
+        <div className="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-100">
-              আজকের মোট অর্ডার (Today)
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              মোট অর্ডার সংখ্যা
             </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 text-lg">
-              <FaCalendarDay />
-            </div>
-          </div>
-          <h2 className="mt-3 text-3xl font-black">
-            {overallStats.todayOrders} টি অর্ডার
-          </h2>
-          <div className="mt-3 flex items-center justify-between border-t border-white/15 pt-2.5 text-xs text-emerald-100">
-            <span>মোট টাকা: ৳{formatMoney(overallStats.todayRevenue)}</span>
-            <span className="font-bold">{overallStats.todayUnits} pcs</span>
-          </div>
-        </div>
-
-        {/* 2. THIS MONTH'S TOTAL ORDERS */}
-        <div className="rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-5 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-100">
-              চলতি মাসের অর্ডার ({overallStats.thisMonthLabel})
-            </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 text-lg">
-              <FaCalendarAlt />
-            </div>
-          </div>
-          <h2 className="mt-3 text-3xl font-black">
-            {overallStats.thisMonthOrders} টি অর্ডার
-          </h2>
-          <div className="mt-3 flex items-center justify-between border-t border-white/15 pt-2.5 text-xs text-blue-100">
-            <span>মোট টাকা: ৳{formatMoney(overallStats.thisMonthRevenue)}</span>
-            <span className="font-bold">{overallStats.thisMonthDays} দিন</span>
-          </div>
-        </div>
-
-        {/* 3. ALL-TIME TOTAL ORDERS */}
-        <div className="rounded-3xl bg-gradient-to-br from-purple-600 via-purple-700 to-fuchsia-800 p-5 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-purple-100">
-              সর্বমোট অর্ডার (All Time)
-            </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 text-lg">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
               <FaShoppingBag />
             </div>
           </div>
-          <h2 className="mt-3 text-3xl font-black">
-            {overallStats.allTimeOrders} টি অর্ডার
-          </h2>
-          <div className="mt-3 flex items-center justify-between border-t border-white/15 pt-2.5 text-xs text-purple-100">
-            <span>সর্বমোট: ৳{formatMoney(overallStats.allTimeRevenue)}</span>
-            <span className="font-bold">{dailyReports.length} দিন</span>
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black text-slate-900">
+              {executiveKPIs.totalOrdersCount.toLocaleString()} টি
+            </span>
           </div>
+          <p className="mt-2 text-[11px] font-medium text-slate-500">
+            গড় মান:{" "}
+            <span className="font-bold text-slate-700">
+              ৳ {executiveKPIs.avgOrderValue}
+            </span>
+          </p>
         </div>
 
-        {/* 4. DELIVERY & UNITS STATS */}
-        <div className="rounded-3xl bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-5 text-white shadow-lg">
+        {/* Card 3: Items Sold */}
+        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              ডেলিভারি ও মোট ওষুধ
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              ওষুধের মোট ইউনিট
             </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/20 text-lg text-emerald-400">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
               <FaBoxes />
             </div>
           </div>
-          <h2 className="mt-3 text-3xl font-black text-emerald-400">
-            {overallStats.allTimeUnits.toLocaleString()} Pcs
-          </h2>
-          <div className="mt-3 flex items-center justify-between border-t border-white/15 pt-2.5 text-[11px]">
-            <span className="flex items-center gap-1 font-bold text-emerald-400">
-              <FaCheckCircle size={10} /> Completed:{" "}
-              {overallStats.allTimeCompleted}
+          <div className="mt-3">
+            <span className="text-2xl sm:text-3xl font-black text-slate-900">
+              {executiveKPIs.totalItems.toLocaleString()} Pcs
             </span>
-            <span className="flex items-center gap-1 font-bold text-amber-400">
-              <FaClock size={10} /> Pending: {overallStats.allTimePending}
+          </div>
+          <p className="mt-2 text-[11px] font-medium text-slate-500">
+            সম্পন্ন অর্ডার:{" "}
+            <span className="font-bold text-emerald-600">
+              {executiveKPIs.completedCount} টি
             </span>
+          </p>
+        </div>
+
+        {/* Card 4: Delivery Rate */}
+        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              ডেলিভারি সমাপ্তি হার
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <FaCheckCircle />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black text-slate-900">
+              {executiveKPIs.completionRate}%
+            </span>
+            <span className="text-xs font-semibold text-emerald-600">
+              সক্রিয়
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
+              style={{ width: `${executiveKPIs.completionRate}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* =====================================================
-          VIEW SWITCHER: DAILY TOTAL ORDERS vs MONTHLY TOTAL ORDERS
-      ===================================================== */}
-      <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-xs">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewTab("daily")}
-              className={`inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs sm:text-sm font-black transition ${
-                viewTab === "daily"
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              <FaCalendarDay />
-              <span>প্রতিদিনের মোট অর্ডার ({dailyReports.length} দিন)</span>
-            </button>
+      {/* ===================================================================
+          3. TABS & SEARCH
+      =================================================================== */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl w-full sm:w-auto">
+          <button
+            onClick={() => setActiveTab("monthly")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              activeTab === "monthly"
+                ? "bg-white text-emerald-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <FaCalendarAlt />
+            <span>প্রতি মাসের মোট বিক্রয় ({monthlyReports.length} মাস)</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              activeTab === "orders"
+                ? "bg-white text-emerald-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <FaShoppingBag />
+            <span>সকল অর্ডার তালিকা ({filteredOrders.length})</span>
+          </button>
+        </div>
 
-            <button
-              type="button"
-              onClick={() => setViewTab("monthly")}
-              className={`inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs sm:text-sm font-black transition ${
-                viewTab === "monthly"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              <FaCalendarAlt />
-              <span>প্রতি মাসের মোট অর্ডার ({monthlyReports.length} মাস)</span>
-            </button>
-          </div>
-
-          {/* FILTER BY MONTH & SEARCH (FOR DAILY VIEW) */}
-          {viewTab === "daily" && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={selectedMonthFilter}
-                onChange={(e) => setSelectedMonthFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white"
-              >
-                <option value="all">সকল মাস (All Months)</option>
-                {monthlyReports.map((m) => (
-                  <option key={m.monthKey} value={m.monthKey}>
-                    {m.monthLabel} ({m.totalOrders} Orders)
-                  </option>
-                ))}
-              </select>
-
-              <div className="relative w-full sm:w-60">
-                <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="তারিখ বা কাস্টমার খুঁজুন..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-700"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+        {/* Search */}
+        <div className="relative w-full sm:w-72">
+          <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+          <input
+            type="text"
+            placeholder="কাস্টমার নাম, ফোন বা ইনভয়েস নং..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white py-2 pl-9 pr-4 text-xs font-medium placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          />
         </div>
       </div>
 
-      {/* =====================================================
-          TAB 1: প্রতিদিনের মোট অর্ডার (DAILY TOTAL ORDERS TABLE)
-      ===================================================== */}
-      {viewTab === "daily" ? (
-        <div className="mt-5 space-y-3">
-          {filteredDailyReports.length === 0 ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-              <p className="text-base font-bold text-slate-600">
-                কোনো দিনের অর্ডার পাওয়া যায়নি।
-              </p>
-            </div>
-          ) : (
-            filteredDailyReports.map((day, idx) => {
-              const isExpanded = expandedDayKey === day.dayKey;
+      {/* ===================================================================
+          TAB 1: প্রতি মাসের আলাদা কার্ড (MONTHLY SALES CARDS)
+      =================================================================== */}
+      {activeTab === "monthly" && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">
+              মাসিক বিক্রয় বিশ্লেষণ ও তুলনামূলক কার্ড
+            </h2>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              *মাসের কার্ডে ক্লিক করে ওই মাসের প্রতিদিনের ২:০০ PM হিসাব চক্র
+              দেখুন
+            </span>
+          </div>
 
-              return (
-                <div
-                  key={day.dayKey}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xs transition hover:shadow-md"
-                >
-                  {/* DAY SUMMARY ROW */}
-                  <div
-                    onClick={() =>
-                      setExpandedDayKey(isExpanded ? null : day.dayKey)
-                    }
-                    className="cursor-pointer p-4 sm:p-5 transition hover:bg-slate-50/80"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      {/* LEFT: DATE & CYCLE */}
-                      <div className="flex items-start gap-3.5">
-                        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
-                          <span className="text-[9px] font-bold uppercase">
-                            DAY
-                          </span>
-                          <span className="text-sm font-black leading-none">
-                            #{filteredDailyReports.length - idx}
-                          </span>
-                        </div>
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base sm:text-lg font-black text-slate-900">
-                              {day.dayTitle}
-                            </h3>
-                            <span className="rounded-lg bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
-                              {day.monthLabel}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-xs font-medium text-slate-500">
-                            Cycle: {day.cycleLabel}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* RIGHT: METRICS (TOTAL ORDERS, CUSTOMERS, UNITS, AMOUNT) */}
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:flex lg:items-center lg:gap-6 border-t border-slate-100 pt-3 lg:border-0 lg:pt-0">
-                        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-center">
-                          <span className="block text-[10px] font-bold uppercase text-emerald-700">
-                            দিনের মোট অর্ডার
-                          </span>
-                          <span className="text-base sm:text-lg font-black text-emerald-900">
-                            {day.totalOrders} টি অর্ডার
-                          </span>
-                        </div>
-
-                        <div className="rounded-2xl bg-blue-50 border border-blue-200 px-3.5 py-2 text-center">
-                          <span className="block text-[10px] font-bold uppercase text-blue-700">
-                            কাস্টমার সংখ্যা
-                          </span>
-                          <span className="text-base sm:text-lg font-black text-blue-900">
-                            {day.uniqueCustomers} জন
-                          </span>
-                        </div>
-
-                        <div className="rounded-2xl bg-purple-50 border border-purple-200 px-3.5 py-2 text-center">
-                          <span className="block text-[10px] font-bold uppercase text-purple-700">
-                            মোট ওষুধ (Qty)
-                          </span>
-                          <span className="text-base sm:text-lg font-black text-purple-900">
-                            {day.totalUnits} pcs
-                          </span>
-                        </div>
-
-                        <div className="text-left sm:text-right">
-                          <span className="block text-[10px] font-bold uppercase text-slate-400">
-                            দিনের মোট বিক্রি
-                          </span>
-                          <span className="text-lg sm:text-xl font-black text-emerald-700">
-                            ৳ {formatMoney(day.totalAmount)}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="hidden lg:flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                        >
-                          {isExpanded ? (
-                            <FaChevronUp size={13} />
-                          ) : (
-                            <FaChevronDown size={13} />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* EXPANDED ORDERS OF THIS DAY */}
-                  {isExpanded && (
-                    <div className="border-t border-slate-200 bg-slate-50 p-4 sm:p-5">
-                      <div className="mb-3 flex items-center justify-between">
-                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                          {day.dayTitle}-এর সকল অর্ডারের তালিকা (
-                          {day.ordersList.length} টি অর্ডার)
-                        </h4>
-                        <div className="flex items-center gap-3 text-xs font-bold">
-                          <span className="text-emerald-700">
-                            ✓ Completed: {day.completedCount}
-                          </span>
-                          <span className="text-amber-700">
-                            ⏳ Pending: {day.pendingCount}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                        <table className="w-full text-left text-xs">
-                          <thead className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400">
-                            <tr>
-                              <th className="px-4 py-3">#</th>
-                              <th className="px-4 py-3">Time</th>
-                              <th className="px-4 py-3">Customer</th>
-                              <th className="px-4 py-3">Phone</th>
-                              <th className="px-4 py-3 text-center">
-                                Items / Units
-                              </th>
-                              <th className="px-4 py-3 text-right">Amount</th>
-                              <th className="px-4 py-3 text-center">Status</th>
-                              <th className="px-4 py-3 text-center">Invoice</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {day.ordersList.map((ord, oIdx) => (
-                              <tr
-                                key={ord._id || oIdx}
-                                className="hover:bg-slate-50"
-                              >
-                                <td className="px-4 py-3 font-bold text-slate-400">
-                                  {oIdx + 1}
-                                </td>
-                                <td className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">
-                                  {new Date(
-                                    ord.orderDate || ord.createdAt,
-                                  ).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </td>
-                                <td className="px-4 py-3 font-black text-slate-900">
-                                  {ord.customerName || "Walk-in"}
-                                </td>
-                                <td className="px-4 py-3 text-slate-600 font-semibold">
-                                  <span className="inline-flex items-center gap-1">
-                                    <FaPhoneAlt className="text-[9px] text-emerald-600" />
-                                    {ord.phone || "N/A"}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                  {getOrderItems(ord).length} items (
-                                  {getOrderUnits(ord)} pcs)
-                                </td>
-                                <td className="px-4 py-3 text-right font-black text-emerald-700">
-                                  ৳ {formatMoney(getOrderAmount(ord))}
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <span
-                                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-black ${
-                                      String(
-                                        ord.orderStatus || "",
-                                      ).toLowerCase() === "completed"
-                                        ? "bg-emerald-100 text-emerald-800"
-                                        : "bg-amber-100 text-amber-800"
-                                    }`}
-                                  >
-                                    {ord.orderStatus || "Pending"}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <Link
-                                    to={`/dashboard/invoice/${ord._id}`}
-                                    state={{ combinedOrder: ord }}
-                                    className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-600"
-                                  >
-                                    <FaFileInvoice size={10} />
-                                    <span>Invoice</span>
-                                  </Link>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      ) : (
-        /* =====================================================
-            TAB 2: প্রতি মাসের মোট অর্ডার (MONTHLY TOTAL ORDERS)
-        ===================================================== */
-        <div className="mt-5 space-y-4">
           {monthlyReports.length === 0 ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
-              <p className="text-base font-bold text-slate-600">
-                কোনো মাসের অর্ডার পাওয়া যায়নি।
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+              <FaShoppingBag className="mx-auto text-4xl text-slate-300 mb-3" />
+              <h3 className="text-base font-bold text-slate-700">
+                কোনো অর্ডার পাওয়া যায়নি
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                আপনার নির্বাচিত ফিল্টারে কোনো অর্ডার নেই।
               </p>
+              <button
+                onClick={() => fetchOrders(true)}
+                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
+              >
+                আবার রিফ্রেশ করুন
+              </button>
             </div>
           ) : (
-            monthlyReports.map((month, mIdx) => {
-              const isMonthExpanded = expandedMonthKey === month.monthKey;
-
-              return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {monthlyReports.map((month) => (
                 <div
                   key={month.monthKey}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs transition hover:shadow-md"
+                  className="rounded-3xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col"
                 >
-                  {/* MONTH SUMMARY BANNER */}
-                  <div
-                    onClick={() =>
-                      setExpandedMonthKey(
-                        isMonthExpanded ? null : month.monthKey,
-                      )
-                    }
-                    className="cursor-pointer bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-5 text-white transition hover:opacity-95"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex items-center gap-3.5">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                          <FaCalendarAlt size={22} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-md bg-blue-500 px-2 py-0.5 text-[10px] font-black uppercase text-slate-950">
-                              Month #{monthlyReports.length - mIdx}
-                            </span>
-                            <span className="text-xs text-slate-300">
-                              {month.activeDaysCount} Active Order Days
-                            </span>
-                          </div>
-                          <h2 className="mt-0.5 text-xl font-black tracking-wide">
-                            {month.monthLabel}
-                          </h2>
-                        </div>
+                  {/* Card Header */}
+                  <div className="bg-gradient-to-br from-slate-900 to-teal-950 p-5 text-white">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                        {month.monthLabel}
+                      </span>
+                      <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-white border border-white/10">
+                        {month.sharePercent}% of Total
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex items-baseline justify-between">
+                      <div>
+                        <span className="text-xs text-slate-300 block">
+                          মোট বিক্রয় (Total Sales)
+                        </span>
+                        <span className="text-2xl font-black text-emerald-400">
+                          ৳ {month.totalSales.toLocaleString()}
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:flex lg:items-center lg:gap-6">
-                        <div className="rounded-2xl bg-white/10 px-4 py-2 text-center border border-white/10">
-                          <span className="block text-[10px] font-bold uppercase text-blue-200">
-                            মাসের মোট অর্ডার
-                          </span>
-                          <span className="text-lg font-black text-white">
-                            {month.totalOrders} টি অর্ডার
-                          </span>
-                        </div>
-
-                        <div className="rounded-2xl bg-white/10 px-4 py-2 text-center border border-white/10">
-                          <span className="block text-[10px] font-bold uppercase text-emerald-200">
-                            মোট কাস্টমার
-                          </span>
-                          <span className="text-lg font-black text-white">
-                            {month.uniqueCustomers} জন
-                          </span>
-                        </div>
-
-                        <div className="rounded-2xl bg-white/10 px-4 py-2 text-center border border-white/10">
-                          <span className="block text-[10px] font-bold uppercase text-purple-200">
-                            মোট ওষুধ বিক্রি
-                          </span>
-                          <span className="text-lg font-black text-white">
-                            {month.totalUnits} pcs
-                          </span>
-                        </div>
-
-                        <div className="text-left sm:text-right">
-                          <span className="block text-[10px] font-bold uppercase text-emerald-400">
-                            মাসের মোট বিক্রি
-                          </span>
-                          <span className="text-xl sm:text-2xl font-black text-emerald-400">
-                            ৳ {formatMoney(month.totalAmount)}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="hidden lg:flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white"
+                      {month.growthPercent !== null && (
+                        <div
+                          className={`flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold ${
+                            month.growthPercent >= 0
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                          }`}
+                          title="পূর্ববর্তী মাসের তুলনায় প্রবৃদ্ধি"
                         >
-                          {isMonthExpanded ? (
-                            <FaChevronUp size={14} />
+                          {month.growthPercent >= 0 ? (
+                            <FaArrowUp />
                           ) : (
-                            <FaChevronDown size={14} />
+                            <FaArrowDown />
                           )}
-                        </button>
-                      </div>
+                          <span>{Math.abs(month.growthPercent)}%</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* EXPANDED DAILY BREAKDOWN INSIDE THIS MONTH */}
-                  {isMonthExpanded && (
-                    <div className="p-4 sm:p-5 bg-slate-50">
-                      <h4 className="mb-3 text-xs font-black uppercase tracking-wider text-slate-700">
-                        {month.monthLabel} মাসের প্রতিদিনের অর্ডার হিসাব (
-                        {month.daysBreakdown.length} দিন)
-                      </h4>
-
-                      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                        <table className="w-full text-left text-xs">
-                          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase text-slate-500">
-                            <tr>
-                              <th className="px-4 py-3">Date / Cycle</th>
-                              <th className="px-4 py-3 text-center">
-                                দিনের মোট অর্ডার
-                              </th>
-                              <th className="px-4 py-3 text-center">
-                                কাস্টমার সংখ্যা
-                              </th>
-                              <th className="px-4 py-3 text-center">
-                                মোট ওষুধ (Pcs)
-                              </th>
-                              <th className="px-4 py-3 text-right">
-                                দিনের মোট টাকা (৳)
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {month.daysBreakdown.map((d) => (
-                              <tr
-                                key={d.dayKey}
-                                className="hover:bg-slate-50/80"
-                              >
-                                <td className="px-4 py-3">
-                                  <div className="font-black text-slate-900">
-                                    {d.dayTitle}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400">
-                                    {d.cycleLabel}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1 font-black text-emerald-800">
-                                    {d.totalOrders} টি অর্ডার
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                  <span className="inline-flex items-center gap-1">
-                                    <FaUsers className="text-blue-500 text-[10px]" />
-                                    {d.uniqueCustomers} জন
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center font-bold text-purple-700">
-                                  {d.totalUnits} pcs
-                                </td>
-                                <td className="px-4 py-3 text-right font-black text-emerald-700 text-sm">
-                                  ৳ {formatMoney(d.totalAmount)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                  {/* Card Body */}
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div className="grid grid-cols-3 gap-2 py-2 border-b border-slate-100 text-center">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          মোট অর্ডার
+                        </span>
+                        <span className="text-sm font-black text-slate-800">
+                          {month.orderCount} টি
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          মোট কাস্টমার
+                        </span>
+                        <span className="text-sm font-black text-slate-800">
+                          {month.customerCount} জন
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          গড় মূল্য
+                        </span>
+                        <span className="text-sm font-black text-emerald-700">
+                          ৳{" "}
+                          {Math.round(
+                            month.totalSales / (month.orderCount || 1),
+                          )}
+                        </span>
                       </div>
                     </div>
-                  )}
+
+                    {/* Collapsible Daily Cycle Button */}
+                    <div className="mt-4">
+                      <button
+                        onClick={() => toggleMonth(month.monthKey)}
+                        className="w-full flex items-center justify-between rounded-xl bg-slate-50 hover:bg-emerald-50 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:text-emerald-800 transition cursor-pointer"
+                      >
+                        <span>
+                          দৈনিক ২:০০ PM হিসাব ({month.days.length} দিন)
+                        </span>
+                        {expandedMonths[month.monthKey] ? (
+                          <FaChevronUp />
+                        ) : (
+                          <FaChevronDown />
+                        )}
+                      </button>
+
+                      {expandedMonths[month.monthKey] && (
+                        <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/70 p-2 space-y-1.5 text-xs">
+                          {month.days.map((day) => (
+                            <div
+                              key={day.dayKey}
+                              className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-2xs border border-slate-100"
+                            >
+                              <span className="font-semibold text-slate-700">
+                                {day.dayKey}
+                              </span>
+                              <span className="font-bold text-emerald-800">
+                                ৳ {day.sales.toLocaleString()}{" "}
+                                <span className="text-[10px] font-normal text-slate-400">
+                                  ({day.orderCount} orders)
+                                </span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              );
-            })
+              ))}
+            </div>
           )}
+        </div>
+      )}
+
+      {/* ===================================================================
+          TAB 2: সকল অর্ডারের তালিকা (ALL ORDERS TABLE)
+      =================================================================== */}
+      {activeTab === "orders" && (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4">ইনভয়েস / আইডি</th>
+                  <th className="py-3 px-4">অর্ডারের তারিখ</th>
+                  <th className="py-3 px-4">গ্রাহক তথ্য</th>
+                  <th className="py-3 px-4">ওষুধ আইটেম</th>
+                  <th className="py-3 px-4 text-right">মূল্য (৳)</th>
+                  <th className="py-3 px-4 text-center">স্ট্যাটাস</th>
+                  <th className="py-3 px-4 text-center">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-slate-400">
+                      কোনো অর্ডার তথ্য পাওয়া যায়নি
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.slice(0, 100).map((ord) => {
+                    const dateObj = getOrderDate(ord);
+                    const amount = getOrderAmount(ord);
+                    const items = getOrderItems(ord);
+
+                    return (
+                      <tr
+                        key={ord._id}
+                        className="hover:bg-slate-50/80 transition"
+                      >
+                        <td className="py-3 px-4">
+                          <span className="font-mono font-bold text-emerald-700 block">
+                            {ord.invoiceNo || ord._id}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                          {dateObj.toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900">
+                            {ord.customerName || ord.name || "Customer"}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {ord.phone || "N/A"}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {items.length > 0 ? (
+                            <span className="text-slate-700">
+                              {items[0].medicineName}{" "}
+                              {items.length > 1 && (
+                                <span className="text-emerald-700 font-bold">
+                                  +{items.length - 1} more
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">1 Item</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-black text-slate-900 whitespace-nowrap">
+                          ৳ {amount.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                              String(ord.orderStatus || "").toLowerCase() ===
+                                "completed" ||
+                              String(ord.orderStatus || "").toLowerCase() ===
+                                "delivered"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {ord.orderStatus || "Pending"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedOrder(ord)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2.5 py-1 text-xs font-bold transition cursor-pointer"
+                          >
+                            <FaFileInvoice className="text-xs" />
+                            <span>রসিদ</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          INVOICE MODAL
+      =================================================================== */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+                  NovaCare Pharmacy Receipt
+                </span>
+                <h3 className="text-lg font-black text-slate-900">
+                  {selectedOrder.invoiceNo || "Invoice"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>গ্রাহক নাম:</span>
+                <span className="font-bold text-slate-900">
+                  {selectedOrder.customerName ||
+                    selectedOrder.name ||
+                    "Customer"}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>ফোন নম্বর:</span>
+                <span className="font-bold text-slate-900">
+                  {selectedOrder.phone || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>তারিখ:</span>
+                <span className="font-bold text-slate-900">
+                  {getOrderDate(selectedOrder).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Items */}
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                <span className="font-bold text-slate-700 block mb-2">
+                  ওষুধের তালিকা:
+                </span>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {getOrderItems(selectedOrder).map((it, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between bg-slate-50 p-2 rounded-xl"
+                    >
+                      <div>
+                        <span className="font-bold text-slate-800">
+                          {it.medicineName}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">
+                          {it.quantity} Pcs × ৳ {it.unitPrice || 0}
+                        </span>
+                      </div>
+                      <span className="font-bold text-slate-900">
+                        ৳ {it.totalPrice || it.quantity * it.unitPrice || 0}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-black text-slate-900">
+                <span>সর্বমোট (Grand Total):</span>
+                <span className="text-emerald-700 text-base">
+                  ৳ {getOrderAmount(selectedOrder).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 text-xs font-bold transition cursor-pointer"
+              >
+                <FaPrint />
+                <span>প্রিন্ট করুন</span>
+              </button>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 text-xs font-bold transition cursor-pointer"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-export default TotalOrders;

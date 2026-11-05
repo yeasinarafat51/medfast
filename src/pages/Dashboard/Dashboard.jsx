@@ -18,6 +18,7 @@ import {
   FaChartLine,
   FaShieldAlt,
   FaBullhorn,
+  FaStore,
 } from "react-icons/fa";
 import Swal from "sweetalert2";
 import useAuth from "../../hooks/useAuth";
@@ -92,7 +93,9 @@ function Dashboard() {
   useEffect(() => {
     if (!roleLoading && role === "admin") {
       const isAllowedForAdmin =
-        location.pathname === "/dashboard/all-orders" ||
+        // location.pathname === "/dashboard/all-orders" ||
+        // location.pathname === "/dashboard/total-orders" ||
+        location.pathname === "/dashboard/order-list" ||
         location.pathname.startsWith("/dashboard/invoice") ||
         location.pathname.startsWith("/dashboard/admin/invoice");
 
@@ -244,13 +247,22 @@ function Dashboard() {
                 Order Management
               </p>
 
-              <NavLink
+              {/* <NavLink
                 to="/dashboard/all-orders"
                 className={menuClass}
                 onClick={closeSidebar}
               >
                 <FaShoppingCart className="text-base" />
                 <span>All Orders</span>
+              </NavLink> */}
+              {/* Admin এবং Super Admin উভয়েই এটি দেখবে */}
+              <NavLink
+                to="/dashboard/order-list"
+                className={menuClass}
+                onClick={closeSidebar}
+              >
+                <FaStore className="text-base" />
+                <span>Order List (ফার্মেসি বাকি ও চালান)</span>
               </NavLink>
             </>
           )}
@@ -306,7 +318,15 @@ function Dashboard() {
                 <FaShoppingCart className="text-base" />
                 <span>All Orders</span>
               </NavLink>
-
+              {/* Admin এবং Super Admin উভয়েই এটি দেখবে */}
+              <NavLink
+                to="/dashboard/order-list"
+                className={menuClass}
+                onClick={closeSidebar}
+              >
+                <FaStore className="text-base" />
+                <span>Order List (ফার্মেসি বাকি ও চালান)</span>
+              </NavLink>
               <div className="pt-4 pb-1">
                 <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
                   Super Admin & Finance
