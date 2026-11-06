@@ -8,6 +8,7 @@ import {
 } from "react-icons/fa";
 import HeroSlider from "./HeroSlider";
 import AllitemMedicine from "../../pages/Dashboard/Customer/AllItemMedicine";
+import NewProducts from "../Headline/NewProducts";
 
 const APK_DOWNLOAD_URL =
   "https://web2apkpro.com/public_download.php?project_id=20811&token=6e0ada7cc4";
@@ -63,6 +64,7 @@ const Mainbody = () => {
       ===================================================== */}
       <div className="mx-auto max-w-7xl px-2.5 pt-2 sm:px-4">
         <HeroSlider />
+        {/* <NewProducts /> */}
       </div>
 
       {/* =====================================================

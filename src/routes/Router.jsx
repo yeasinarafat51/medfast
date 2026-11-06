@@ -33,6 +33,7 @@ import TotalOrders from "../pages/Dashboard/Admin/TotalOrders";
 import HeadlineManagement from "../pages/Dashboard/Admin/HeadlineManagement";
 import MrpCalculator from "../pages/Dashboard/Admin/MrpCalculator";
 import OrderList from "../pages/Dashboard/Admin/OrderList";
+import NewProducts from "../components/Headline/NewProducts";
 // import Unauthorized from "./pages/Unauthorized";
 // import Unauthorized from "./pages/Unauthorized";
 const router = createBrowserRouter([
@@ -80,6 +81,10 @@ const router = createBrowserRouter([
       {
         path: "my-orders",
         element: <MyOrders />,
+      },
+      {
+        path: "new-products",
+        element: <NewProducts />,
       },
       // {
       //   path: "my-invoices",

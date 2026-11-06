@@ -36,3 +36,23 @@
 .ticker-fast {
   animation-duration: 20s !important; /* দ্রুত গতি */
 }
+
+@keyframes tvTicker {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-33.333333%, 0, 0);
+  }
+}
+
+.animate-tv-ticker {
+  display: inline-flex;
+  animation: tvTicker 40s linear infinite;
+  will-change: transform;
+}
+
+.animate-tv-ticker.paused,
+.animate-tv-ticker:hover {
+  animation-play-state: paused !important;
+}
