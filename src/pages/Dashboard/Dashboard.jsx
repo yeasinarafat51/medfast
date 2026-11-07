@@ -96,11 +96,12 @@ function Dashboard() {
         // location.pathname === "/dashboard/all-orders" ||
         // location.pathname === "/dashboard/total-orders" ||
         location.pathname === "/dashboard/order-list" ||
+        location.pathname === "/dashboard/mrp-calculator" ||
         location.pathname.startsWith("/dashboard/invoice") ||
         location.pathname.startsWith("/dashboard/admin/invoice");
 
       if (!isAllowedForAdmin) {
-        navigate("/dashboard/all-orders", { replace: true });
+        navigate("/dashboard/mrp-calculator", { replace: true });
       }
     }
   }, [role, roleLoading, location.pathname, navigate]);
@@ -263,6 +264,14 @@ function Dashboard() {
               >
                 <FaStore className="text-base" />
                 <span>Order List (ফার্মেসি বাকি ও চালান)</span>
+              </NavLink>
+              <NavLink
+                to="/dashboard/mrp-calculator"
+                className={menuClass}
+                onClick={closeSidebar}
+              >
+                <FaClipboardList className="text-base" />
+                <span> 🧮 MRP ক্যালকুলেটর</span>
               </NavLink>
             </>
           )}

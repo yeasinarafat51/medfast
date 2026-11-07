@@ -13,8 +13,6 @@ import {
   FaShareAlt,
   FaBoxes,
   FaPercent,
-  FaTag,
-  FaCheck,
   FaTimes,
   FaSyncAlt,
   FaDatabase,
@@ -29,7 +27,7 @@ const API_URL = (
 // কুইক ডিসকাউন্ট পার্সেন্টেজ প্রিসেট
 const QUICK_DISCOUNTS = [0, 5, 8, 10, 12, 14, 15, 16, 18, 20];
 
-// অফলাইন বা সার্ভার লোড হওয়ার আগ পর্যন্ত ফলব্যাক ওষুধ
+// অফলাইন বা প্রাথমিক ফলব্যাক ওষুধ (Rosuva সহ নিশ্চিত উপস্থিতি)
 const FALLBACK_MEDICINES = [
   {
     _id: "6a9c3ae0ea51058eeec66cbf",
@@ -41,6 +39,61 @@ const FALLBACK_MEDICINES = [
     sellingPrice: 421.68,
     boxQuantity: 20,
     stock: 50,
+  },
+  {
+    _id: "6aa97414661254b9ef3dc2a5",
+    medicineName: "Rosuva 10",
+    genericName: "Rosuvastatin Calcium",
+    company: "Square",
+    category: "Tablet",
+    mrpePrice: 660,
+    sellingPrice: 554.4,
+    boxQuantity: 10,
+    stock: 18,
+  },
+  {
+    _id: "6aba85f8844d360f5cf639f5",
+    medicineName: "Rosuva 20",
+    genericName: "Rosuvastatin Calcium",
+    company: "Square",
+    category: "Tablet",
+    mrpePrice: 640,
+    sellingPrice: 537.6,
+    boxQuantity: 10,
+    stock: 10,
+  },
+  {
+    _id: "6aba867c844d360f5cf639f6",
+    medicineName: "Rosuva 5",
+    genericName: "Rosuvastatin Calcium",
+    company: "Square",
+    category: "Tablet",
+    mrpePrice: 600,
+    sellingPrice: 504,
+    boxQuantity: 10,
+    stock: 8,
+  },
+  {
+    _id: "6ac9b1ae844d360f5cf63ae8",
+    medicineName: "Rosuva Ez 10/10",
+    genericName: "Rosuvastatin + Ezetimibe",
+    company: "Square",
+    category: "Tablet",
+    mrpePrice: 750,
+    sellingPrice: 630,
+    boxQuantity: 10,
+    stock: 15,
+  },
+  {
+    _id: "6accfaa26141ff24c3d69ef0",
+    medicineName: "Rosuva Ez 20/10",
+    genericName: "Rosuvastatin + Ezetimibe",
+    company: "Square",
+    category: "Tablet",
+    mrpePrice: 660,
+    sellingPrice: 554.4,
+    boxQuantity: 10,
+    stock: 12,
   },
   {
     _id: "6acbefa9844d360f5cf63b11",
@@ -95,6 +148,10 @@ export default function MrpCalculator() {
   const [isSearching, setIsSearching] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(12);
 
+  // লাইভ সার্ভার সার্চ রেজাল্ট স্টেট (যাতে Rosuva সহ ডাটাবেজের যেকোনো ঔষধ তাৎক্ষণিক পাওয়া যায়)
+  const [serverResults, setServerResults] = useState([]);
+  const [serverSearching, setServerSearching] = useState(false);
+
   // ক্যালকুলেটর আইটেম স্টেট (লোকাল স্টোরেজ ক্যাশিং সহ)
   const [items, setItems] = useState(() => {
     try {
@@ -106,7 +163,6 @@ export default function MrpCalculator() {
     } catch (e) {
       // ignore
     }
-    // প্রাথমিক ডেমো হিসাব
     return [
       {
         id: "item-1",
@@ -121,35 +177,35 @@ export default function MrpCalculator() {
       },
       {
         id: "item-2",
-        medicineId: "6acbefa9844d360f5cf63b11",
-        medicineName: "Ace Duo",
+        medicineId: "6aa97414661254b9ef3dc2a5",
+        medicineName: "Rosuva 10",
         company: "Square",
         category: "Tablet",
-        boxQuantity: 10,
-        databaseMrp: 63,
-        customMrp: 63,
-        totalMrp: 630,
+        boxQuantity: 1,
+        databaseMrp: 660,
+        customMrp: 660,
+        totalMrp: 660,
       },
     ];
   });
 
-  // কাস্টম ওষুধ যুক্ত করার জন্য মডাল স্টেট
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [customForm, setCustomForm] = useState({
     name: "",
     company: "Square",
-    boxQty: 1,
-    mrp: 100,
+    boxQty: "1",
+    mrp: "100",
   });
 
   const searchBoxRef = useRef(null);
+  const searchCancelRef = useRef(null);
 
-  // ১. লাইভ ডাটাবেজ থেকে সমস্ত ওষুধের তালিকা ও MRP লোড
+  // ১. লাইভ ডাটাবেজ থেকে সমস্ত ওষুধের প্রাথমিক তালিকা লোড
   const fetchMedicines = async () => {
     try {
       setLoadingDb(true);
       const res = await axios.get(`${API_URL}/api/medicines?limit=1000`, {
-        timeout: 15000,
+        timeout: 12000,
       });
 
       const list =
@@ -160,10 +216,16 @@ export default function MrpCalculator() {
           ...m,
           mrpePrice: Number(m.mrpePrice || m.sellingPrice || 100),
         }));
-        setMedicines(formatted);
+
+        const existingIds = new Set(formatted.map((m) => m._id));
+        const missingFallbacks = FALLBACK_MEDICINES.filter(
+          (f) => !existingIds.has(f._id),
+        );
+
+        setMedicines([...formatted, ...missingFallbacks]);
       }
     } catch (err) {
-      console.warn("Using offline medicines fallback:", err.message);
+      console.warn("Using offline medicines fallback:", err?.message || err);
     } finally {
       setLoadingDb(false);
     }
@@ -172,6 +234,67 @@ export default function MrpCalculator() {
   useEffect(() => {
     fetchMedicines();
   }, []);
+
+  // ২. ⚡ লাইভ ডাটাবেজ সার্চ: ব্যবহারকারী টাইপ করলেই সরাসরি সার্ভার এপিআইতে কুয়েরি চলে যাবে
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setServerResults([]);
+      setServerSearching(false);
+      return;
+    }
+
+    if (searchCancelRef.current) {
+      searchCancelRef.current.cancel("New search initiated");
+    }
+    const cancelSource = axios.CancelToken.source();
+    searchCancelRef.current = cancelSource;
+
+    setServerSearching(true);
+    const delayTimer = setTimeout(() => {
+      axios
+        .get(`${API_URL}/api/medicines`, {
+          params: { search: q },
+          timeout: 8000,
+          cancelToken: cancelSource.token,
+        })
+        .then((res) => {
+          const list =
+            res.data?.medicines || (Array.isArray(res.data) ? res.data : []);
+          if (Array.isArray(list)) {
+            const formatted = list.map((m) => ({
+              ...m,
+              mrpePrice: Number(m.mrpePrice || m.sellingPrice || 100),
+            }));
+            setServerResults(formatted);
+
+            // নতুন পাওয়া ওষুধগুলোকে মেমরি ক্যাশেও স্টোর করে রাখা
+            setMedicines((prev) => {
+              const prevIds = new Set(prev.map((p) => p._id));
+              const newItems = formatted.filter(
+                (item) => !prevIds.has(item._id),
+              );
+              return newItems.length > 0 ? [...prev, ...newItems] : prev;
+            });
+          }
+        })
+        .catch((err) => {
+          if (!axios.isCancel(err)) {
+            console.warn("Live server search fallback:", err?.message || err);
+          }
+        })
+        .finally(() => {
+          setServerSearching(false);
+        });
+    }, 200);
+
+    return () => {
+      clearTimeout(delayTimer);
+      if (searchCancelRef.current) {
+        searchCancelRef.current.cancel("Component unmount or new input");
+      }
+    };
+  }, [searchQuery]);
 
   // লোকাল স্টোরেজে স্বয়ংক্রিয় সংরক্ষণ
   useEffect(() => {
@@ -191,51 +314,56 @@ export default function MrpCalculator() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // সার্চ রেজাল্ট ফিল্টার (নাম ও জেনেরিক নাম দিয়ে)
+  // ৩. হাইব্রিড সার্চ রেজাল্ট: সার্ভার লাইভ রেজাল্ট + লোকাল মেমোরি ফিল্টার
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return medicines
+
+    const map = new Map();
+
+    serverResults.forEach((m) => {
+      if (m && m._id) map.set(m._id, m);
+    });
+
+    medicines
       .filter(
         (m) =>
           (m.medicineName || "").toLowerCase().includes(q) ||
           (m.genericName || "").toLowerCase().includes(q) ||
           (m.company || "").toLowerCase().includes(q),
       )
-      .slice(0, 10);
-  }, [medicines, searchQuery]);
+      .forEach((m) => {
+        if (!map.has(m._id)) map.set(m._id, m);
+      });
 
-  // সর্বমোট বক্স সংখ্যা
+    return Array.from(map.values()).slice(0, 15);
+  }, [medicines, serverResults, searchQuery]);
+
   const totalBoxes = useMemo(
     () => items.reduce((sum, item) => sum + (Number(item.boxQuantity) || 0), 0),
     [items],
   );
 
-  // সর্বমোট গ্রস MRP
   const totalGrossMrp = useMemo(
     () => items.reduce((sum, item) => sum + (Number(item.totalMrp) || 0), 0),
     [items],
   );
 
-  // ডিসকাউন্ট এর পরিমাণ (টাকা)
   const discountAmount = useMemo(() => {
     const pct = Math.max(0, Number(discountPercent) || 0);
     return (totalGrossMrp * pct) / 100;
   }, [totalGrossMrp, discountPercent]);
 
-  // ডিসকাউন্ট বাদে সর্বমোট নিট প্রদেয়
   const netPayable = useMemo(
     () => Math.max(0, totalGrossMrp - discountAmount),
     [totalGrossMrp, discountAmount],
   );
 
-  // ডাটাবেজ থেকে ওষুধ তালিকায় যোগ
   const handleAddMedicine = (med) => {
     const dbMrp = Number(med.mrpePrice || med.sellingPrice || 100);
     const existingIndex = items.findIndex((i) => i.medicineId === med._id);
 
     if (existingIndex >= 0) {
-      // যদি আগে থেকেই থাকে তবে বক্স সংখ্যা ১ বাড়াবো
       setItems((prev) =>
         prev.map((item, idx) => {
           if (idx === existingIndex) {
@@ -258,18 +386,17 @@ export default function MrpCalculator() {
         timer: 1500,
       });
     } else {
-      // নতুন ওষুধ হিসেবে যোগ করা
       const newItem = {
         id:
           "item-" + Date.now() + "-" + Math.random().toString(36).substr(2, 4),
         medicineId: med._id,
         medicineName: med.medicineName,
         genericName: med.genericName || "",
-        company: med.company || "NovaCare",
+        company: med.company || "Square",
         category: med.category || "Tablet",
         boxQuantity: 1,
         databaseMrp: dbMrp,
-        customMrp: dbMrp, // ব্যবহারকারী চাইলে এডিট করতে পারবে
+        customMrp: dbMrp,
         totalMrp: dbMrp * 1,
       };
       setItems((prev) => [newItem, ...prev]);
@@ -287,9 +414,8 @@ export default function MrpCalculator() {
     setIsSearching(false);
   };
 
-  // বক্স সংখ্যা পরিবর্তন
   const updateBoxQty = (id, newQty) => {
-    const qty = Math.max(1, parseInt(newQty, 10) || 1);
+    const qty = Math.max(1, parseInt(String(newQty), 10) || 1);
     setItems((prev) =>
       prev.map((item) =>
         item.id === id
@@ -303,9 +429,8 @@ export default function MrpCalculator() {
     );
   };
 
-  // MRP সরাসরি পরিবর্তন/এডিট করা
   const updateCustomMrp = (id, newPrice) => {
-    const price = Math.max(0, parseFloat(newPrice) || 0);
+    const price = Math.max(0, parseFloat(String(newPrice)) || 0);
     setItems((prev) =>
       prev.map((item) =>
         item.id === id
@@ -319,7 +444,6 @@ export default function MrpCalculator() {
     );
   };
 
-  // ডাটাবেজের মূল MRP-তে রিসেট করা
   const resetToDbMrp = (id) => {
     setItems((prev) =>
       prev.map((item) =>
@@ -334,12 +458,10 @@ export default function MrpCalculator() {
     );
   };
 
-  // তালিকা থেকে আইটেম মুছে ফেলা
   const removeItem = (id) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // সব আইটেম ক্লিয়ার করা
   const handleClearAll = () => {
     if (items.length === 0) return;
     Swal.fire({
@@ -358,7 +480,6 @@ export default function MrpCalculator() {
     });
   };
 
-  // কাস্টম ওষুধ যোগ
   const handleAddCustomMedicine = (e) => {
     e.preventDefault();
     if (!customForm.name.trim()) return;
@@ -380,7 +501,7 @@ export default function MrpCalculator() {
 
     setItems((prev) => [newItem, ...prev]);
     setCustomModalOpen(false);
-    setCustomForm({ name: "", company: "Square", boxQty: 1, mrp: 100 });
+    setCustomForm({ name: "", company: "Square", boxQty: "1", mrp: "100" });
 
     Swal.fire({
       icon: "success",
@@ -390,7 +511,6 @@ export default function MrpCalculator() {
     });
   };
 
-  // হিসাবের সামারি কপি করা
   const handleCopySummary = () => {
     if (items.length === 0) {
       Swal.fire({
@@ -432,9 +552,7 @@ export default function MrpCalculator() {
   return (
     <div className="min-h-screen bg-slate-50 py-6 px-3 sm:px-6">
       <div className="max-w-6xl mx-auto space-y-5">
-        {/* =========================================================
-            শীর্ষ ব্যানার ও লাইভ ডাটাবেজ স্ট্যাটাস
-        ========================================================= */}
+        {/* শীর্ষ ব্যানার ও লাইভ ডাটাবেজ স্ট্যাটাস */}
         <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 p-5 sm:p-7 text-white shadow-xl border border-emerald-500/20">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -457,7 +575,11 @@ export default function MrpCalculator() {
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 font-bold text-emerald-300">
                   <FaDatabase className="text-[10px]" />
-                  <span>ডাটাবেজ ওষুধ সংখ্যা: {medicines.length} টি</span>
+                  <span>ডাটাবেজ ওষুধ সংখ্যা: {medicines.length}+ টি</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-500/20 border border-teal-500/30 px-2.5 py-0.5 text-[11px] font-bold text-teal-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>লাইভ সার্চ সচল (যেমন: Rosuva, Napa, Ace)</span>
                 </span>
                 <button
                   type="button"
@@ -497,17 +619,23 @@ export default function MrpCalculator() {
           </div>
         </div>
 
-        {/* =========================================================
-            সার্চ বক্স (ডাটাবেজ থেকে ওষুধ সার্চ করলেই MRP শো করবে)
-        ========================================================= */}
+        {/* সার্চ বক্স */}
         <div
           ref={searchBoxRef}
           className="relative rounded-2xl bg-white p-4 shadow-sm border border-slate-200"
         >
-          <label className="mb-1.5 block text-xs font-black text-slate-800">
-            🔍 ডাটাবেজ থেকে ওষুধ খুঁজুন (নাম বা জেনেরিক লিখলেই ডাটাবেজ MRP চলে
-            আসবে):
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-black text-slate-800">
+              🔍 ডাটাবেজ থেকে ওষুধ খুঁজুন (নাম বা জেনেরিক লিখলেই ডাটাবেজ MRP চলে
+              আসবে):
+            </label>
+            {serverSearching && (
+              <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                <FaSyncAlt className="animate-spin text-[10px]" />
+                <span>ডাটাবেজ অনুসন্ধান চলছে...</span>
+              </span>
+            )}
+          </div>
           <div className="relative">
             <input
               type="text"
@@ -517,7 +645,7 @@ export default function MrpCalculator() {
                 setIsSearching(true);
               }}
               onFocus={() => setIsSearching(true)}
-              placeholder="ওষুধের নাম লিখুন (যেমন: Ace, Napa, Sergel, Monas, Seclo, AREDS...)"
+              placeholder="ওষুধের নাম লিখুন (যেমন: Rosuva, Ace, Napa, Sergel, Monas, Seclo, AREDS...)"
               className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-10 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             />
             <FaSearch className="absolute left-4 top-3.5 text-slate-400" />
@@ -533,63 +661,77 @@ export default function MrpCalculator() {
           </div>
 
           {/* লাইভ সার্চ সাজেশন ও ডাটাবেজ MRP ড্রপডাউন */}
-          {isSearching && searchResults.length > 0 && (
-            <div className="absolute left-4 right-4 top-full z-30 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl space-y-1">
-              <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-                <span>ডাটাবেজের ওষুধ সমূহ ({searchResults.length})</span>
-                <span className="text-emerald-600">ক্লিক করে যোগ করুন</span>
+          {isSearching && searchQuery.trim() && (
+            <div className="absolute left-4 right-4 top-full z-30 mt-2 max-h-96 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl space-y-1">
+              <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center border-b border-slate-100 pb-1">
+                <span>
+                  ডাটাবেজে পাওয়া গেছে ({searchResults.length} টি ওষুধ)
+                </span>
+                <span className="text-emerald-600 font-bold">
+                  ক্লিক করে যোগ করুন ↵
+                </span>
               </div>
-              {searchResults.map((med) => {
-                const dbPrice = Number(
-                  med.mrpePrice || med.sellingPrice || 100,
-                );
-                return (
-                  <div
-                    key={med._id}
-                    onClick={() => handleAddMedicine(med)}
-                    className="flex items-center justify-between rounded-xl p-2.5 hover:bg-emerald-50/80 cursor-pointer border border-transparent hover:border-emerald-200 transition"
-                  >
-                    <div className="min-w-0 pr-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm text-slate-900">
-                          {med.medicineName}
-                        </span>
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                          {med.company}
-                        </span>
-                        {med.category && (
-                          <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                            {med.category}
-                          </span>
-                        )}
-                      </div>
-                      {med.genericName && (
-                        <p className="text-xs text-slate-500 truncate mt-0.5">
-                          জেনেরিক: {med.genericName}
-                        </p>
-                      )}
-                    </div>
 
-                    <div className="shrink-0 text-right">
-                      <span className="block text-[10px] font-bold uppercase text-slate-400">
-                        ডাটাবেজ বক্স MRP
-                      </span>
-                      <span className="font-mono text-base font-black text-emerald-600">
-                        ৳{dbPrice.toFixed(2)}
-                      </span>
+              {searchResults.length === 0 ? (
+                <div className="py-6 text-center text-slate-400">
+                  <p className="text-xs font-bold text-slate-600">
+                    "{searchQuery}" নামে কোনো ওষুধ মেলেনি!
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    বানান চেক করুন অথবা উপরে <b>+ কাস্টম ওষুধ</b> বাটনে ক্লিক
+                    করে যোগ করুন।
+                  </p>
+                </div>
+              ) : (
+                searchResults.map((med) => {
+                  const dbPrice = Number(
+                    med.mrpePrice || med.sellingPrice || 100,
+                  );
+                  return (
+                    <div
+                      key={med._id}
+                      onClick={() => handleAddMedicine(med)}
+                      className="flex items-center justify-between rounded-xl p-3 hover:bg-emerald-50/80 cursor-pointer border border-transparent hover:border-emerald-200 transition"
+                    >
+                      <div className="min-w-0 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-sm text-slate-900">
+                            {med.medicineName}
+                          </span>
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                            {med.company || "Square"}
+                          </span>
+                          {med.category && (
+                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                              {med.category}
+                            </span>
+                          )}
+                        </div>
+                        {med.genericName ? (
+                          <p className="text-xs text-slate-500 truncate mt-0.5">
+                            জেনেরিক: {med.genericName}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <span className="block text-[10px] font-bold uppercase text-slate-400">
+                          ডাটাবেজ বক্স MRP
+                        </span>
+                        <span className="font-mono text-base font-black text-emerald-600">
+                          ৳{dbPrice.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           )}
         </div>
 
-        {/* =========================================================
-            মূল ২-কলাম লেআউট: ওষুধের টেবিল ও সামারি বক্স
-        ========================================================= */}
+        {/* ওষুধের টেবিল ও সামারি বক্স */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* বাম কলাম: ওষুধসমূহের তালিকা */}
           <div className="lg:col-span-8 rounded-3xl bg-white p-5 shadow-sm border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -620,7 +762,8 @@ export default function MrpCalculator() {
                   এখনো কোনো ওষুধ তালিকায় যুক্ত করা হয়নি!
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
-                  উপরের সার্চ বক্সে ওষুধের নাম লিখে সহজে ওষুধ যোগ করুন।
+                  উপরের সার্চ বক্সে ওষুধের নাম লিখে সহজে ওষুধ যোগ করুন (যেমন:
+                  Rosuva, Ace, Napa...)।
                 </p>
               </div>
             ) : (
@@ -630,7 +773,6 @@ export default function MrpCalculator() {
                     key={item.id}
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-3.5 transition hover:bg-slate-50"
                   >
-                    {/* ওষুধের নাম ও কোম্পানি */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-200 text-[10px] font-black text-slate-700">
@@ -658,9 +800,7 @@ export default function MrpCalculator() {
                       </div>
                     </div>
 
-                    {/* কন্ট্রোল সমূহ: বক্স সংখ্যা, এডিটেবল MRP ও মোট দাম */}
                     <div className="flex items-center justify-between sm:justify-end gap-3 pl-7 sm:pl-0">
-                      {/* বক্স কোয়ান্টিটি ইনপুট */}
                       <div className="flex flex-col items-center">
                         <span className="text-[9px] font-black uppercase text-slate-400">
                           বক্স সংখ্যা
@@ -696,7 +836,6 @@ export default function MrpCalculator() {
                         </div>
                       </div>
 
-                      {/* এডিটেবল বক্স MRP */}
                       <div className="flex flex-col items-end">
                         <span className="text-[9px] font-black uppercase text-slate-400">
                           প্রতি বক্স MRP (৳)
@@ -712,7 +851,6 @@ export default function MrpCalculator() {
                         />
                       </div>
 
-                      {/* মোট MRP */}
                       <div className="w-24 text-right">
                         <span className="block text-[9px] font-black uppercase text-slate-400">
                           মোট MRP
@@ -722,7 +860,6 @@ export default function MrpCalculator() {
                         </span>
                       </div>
 
-                      {/* ডিলিট বাটন */}
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
@@ -738,7 +875,7 @@ export default function MrpCalculator() {
             )}
           </div>
 
-          {/* ডান কলাম: % ডিসকাউন্ট ও চূড়ান্ত হিসাব কার্ড */}
+          {/* % ডিসকাউন্ট ও চূড়ান্ত হিসাব কার্ড */}
           <div className="lg:col-span-4 space-y-4">
             <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-sm border border-slate-200 space-y-5">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -750,7 +887,6 @@ export default function MrpCalculator() {
                 </h3>
               </div>
 
-              {/* ডিসকাউন্ট পার্সেন্টেজ ইনপুট */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-black text-slate-700">
@@ -772,7 +908,6 @@ export default function MrpCalculator() {
                   </div>
                 </div>
 
-                {/* কুইক ডিসকাউন্ট পিল বাটন */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {QUICK_DISCOUNTS.map((pct) => (
                     <button
@@ -791,7 +926,6 @@ export default function MrpCalculator() {
                 </div>
               </div>
 
-              {/* হিসাবের বিস্তারিত সামারি */}
               <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 space-y-3 text-xs">
                 <div className="flex items-center justify-between text-slate-600">
                   <span className="font-bold">আইটেম সংখ্যা:</span>
@@ -834,7 +968,6 @@ export default function MrpCalculator() {
                 </div>
               </div>
 
-              {/* অ্যাকশন বাটন */}
               <div className="space-y-2">
                 <button
                   type="button"
@@ -857,9 +990,7 @@ export default function MrpCalculator() {
           </div>
         </div>
 
-        {/* =========================================================
-            কাস্টম ওষুধ যুক্ত করার মডাল
-        ========================================================= */}
+        {/* কাস্টম ওষুধ যুক্ত করার মডাল */}
         {customModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-2xs">
             <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
@@ -888,7 +1019,7 @@ export default function MrpCalculator() {
                     onChange={(e) =>
                       setCustomForm({ ...customForm, name: e.target.value })
                     }
-                    placeholder="যেমন: Napa Extra, Finix 20..."
+                    placeholder="যেমন: Rosuva 10, Napa Extra, Finix 20..."
                     className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:outline-none focus:border-emerald-500"
                   />
                 </div>
