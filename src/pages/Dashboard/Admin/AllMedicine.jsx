@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
-const API = "https://medpharm-server-3.onrender.com";
+const API = (
+  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+).trim();
 
 const companies = [
   { name: "All Medicines", value: "" },
@@ -18,40 +20,10 @@ const companies = [
   { name: "Aristopharma", value: "Aristopharma" },
 ];
 
-// ইন-মেমোরি ও লোকাল ক্যাশ হেল্পার
-const MEMORY_CACHE = new Map();
-
-const getCachedData = (key) => {
-  if (MEMORY_CACHE.has(key)) return MEMORY_CACHE.get(key);
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      MEMORY_CACHE.set(key, parsed);
-      return parsed;
-    }
-  } catch (e) {
-    console.warn("Cache read error", e);
-  }
-  return null;
-};
-
-const setCachedData = (key, data) => {
-  MEMORY_CACHE.set(key, data);
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.warn("Cache write error", e);
-  }
-};
-
 const AllMedicine = () => {
   const location = useLocation();
-  const navigate = useNavigate();
 
-  // =========================================================================
-  // ১. আগের সার্চ, কোম্পানি, পেজ ও লাস্ট এডিট আইডি রিকভার (State & Session)
-  // =========================================================================
+  // ১. আগের সার্চrr, কোম্পানি ও পেজ রিকভার
   const savedSearch =
     location.state?.search ??
     sessionStorage.getItem("novacare_admin_med_search") ??
@@ -71,27 +43,26 @@ const AllMedicine = () => {
         1,
     ) || 1;
 
-  // কোন মেডিসিনটি এইমাত্র এডিট করা হয়েছে
   const [lastEditedId, setLastEditedId] = useState(
     location.state?.lastEditedId ??
       sessionStorage.getItem("novacare_admin_last_edited_id") ??
       null,
   );
 
-  const [medicines, setMedicines] = useState([]);
+  const [allMedicines, setAllMedicines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // সার্চ স্টেট (আগের সার্চ অক্ষুণ্ণ থাকবে)
+  // সার্চ ও ফিল্টার স্টেট
   const [search, setSearch] = useState(savedSearch);
-  const [debouncedSearch, setDebouncedSearch] = useState(savedSearch);
   const [company, setCompany] = useState(savedCompany);
   const [sort, setSort] = useState(savedSort);
-
   const [page, setPage] = useState(savedPage);
-  const [totalPages, setTotalPages] = useState(1);
 
-  // কুইক এডিট মোডাল স্টেট (পেইজ না ছেড়ে সরাসরি টেবিল থেকে এডিটের সুবিধা)
+  // পেজ প্রতি আইটেম সংখ্যা (চাইলে পরিবর্তন করতে পারেন)
+  const [itemsPerPage, setItemsPerPage] = useState(15);
+
+  // কুইক এডিট মোডাল স্টেট
   const [quickEditMed, setQuickEditMed] = useState(null);
   const [quickEditForm, setQuickEditForm] = useState({
     medicineName: "",
@@ -105,153 +76,30 @@ const AllMedicine = () => {
   });
   const [isUpdatingQuick, setIsUpdatingQuick] = useState(false);
 
-  const limit = 8;
-  const abortControllerRef = useRef(null);
-
-  // =========================================================================
-  // ২. সার্চ ও ফিল্টার পরিবর্তন হলেই সেশন স্টোরেজে সংরক্ষণ (যাতে ফিরে এলে ঠিক থাকে)
-  // =========================================================================
+  // সেশন সংরক্ষণ
   useEffect(() => {
-    sessionStorage.setItem("novacare_admin_med_search", debouncedSearch);
+    sessionStorage.setItem("novacare_admin_med_search", search);
     sessionStorage.setItem("novacare_admin_med_company", company);
     sessionStorage.setItem("novacare_admin_med_page", String(page));
     sessionStorage.setItem("novacare_admin_med_sort", sort);
-  }, [debouncedSearch, company, page, sort]);
+  }, [search, company, page, sort]);
 
-  // =========================================================================
-  // ৩. সার্ভারকে সজাগ রাখার অটো-পিং (Keep Server Awake)
-  // =========================================================================
-  useEffect(() => {
-    const keepAlive = setInterval(
-      () => {
-        axios.get(API + "/api/medicines?limit=1").catch(() => {});
-      },
-      4 * 60 * 1000,
-    );
-
-    return () => clearInterval(keepAlive);
-  }, []);
-
-  // =========================================================================
-  // ৪. লেখার সাথে সাথে লাইভ সার্চ (Debounce: 250ms)
-  // =========================================================================
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (search !== debouncedSearch) {
-        setDebouncedSearch(search);
-        setPage(1);
-      }
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  // =========================================================================
-  // ৫. সুপার-ফাস্ট ডাটা লোড (Instant Cache + Background Fetch)
-  // =========================================================================
-  const loadMedicine = async (forceRefresh = false) => {
-    const cacheKey =
-      "meds_v2_" +
-      debouncedSearch.trim() +
-      "_" +
-      company.trim() +
-      "_" +
-      page +
-      "_" +
-      sort +
-      "_" +
-      limit;
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    const cached = getCachedData(cacheKey);
-    // যদি এডিট হয়ে ফিরে আসে, তবে ক্যাশ এড়িয়ে সরাসরি ফ্রেশ ডাটা আনা হবে
-    if (cached && !forceRefresh && !lastEditedId) {
-      setMedicines(cached.medicines || []);
-      setTotalPages(cached.totalPages || 1);
-      setLoading(false);
-      setIsSyncing(true);
-    } else {
-      setLoading(true);
-    }
-
+  // ২. ⚡ ডাটাবেজ থেকে সম্পূর্ণ মেডিসিন লোড (আনলিমিটেড)
+  const fetchAllMedicines = async (showLoading = true) => {
     try {
-      const params = new URLSearchParams({
-        search: debouncedSearch.trim(),
-        company: company.trim(),
-        page: String(page),
-        limit: String(limit),
-        sort,
-      });
+      if (showLoading) setLoading(true);
+      else setIsSyncing(true);
 
-      const response = await axios.get(
-        API + "/api/medicines?" + params.toString(),
-        { signal: controller.signal },
-      );
+      const response = await axios.get(`${API}/api/medicines`);
+      const meds =
+        response.data?.medicines ||
+        (Array.isArray(response.data) ? response.data : []);
 
-      if (response.data?.success) {
-        const meds = response.data.medicines || [];
-        const pages =
-          Number(response.data.totalPages) > 0
-            ? Number(response.data.totalPages)
-            : 1;
-
-        setMedicines(meds);
-        setTotalPages(pages);
-
-        // ক্যাশে সেভ করে রাখা
-        setCachedData(cacheKey, { medicines: meds, totalPages: pages });
-
-        // পরের পেজের ডাটা আগাম লোড করে রাখা (Prefetch)
-        if (page < pages) {
-          const nextParams = new URLSearchParams({
-            search: debouncedSearch.trim(),
-            company: company.trim(),
-            page: String(page + 1),
-            limit: String(limit),
-            sort,
-          });
-          const nextKey =
-            "meds_v2_" +
-            debouncedSearch.trim() +
-            "_" +
-            company.trim() +
-            "_" +
-            (page + 1) +
-            "_" +
-            sort +
-            "_" +
-            limit;
-
-          if (!MEMORY_CACHE.has(nextKey)) {
-            axios
-              .get(API + "/api/medicines?" + nextParams.toString())
-              .then((res) => {
-                if (res.data?.success) {
-                  setCachedData(nextKey, {
-                    medicines: res.data.medicines || [],
-                    totalPages: pages,
-                  });
-                }
-              })
-              .catch(() => {});
-          }
-        }
-      } else if (!cached) {
-        setMedicines([]);
-        setTotalPages(1);
+      if (Array.isArray(meds)) {
+        setAllMedicines(meds);
       }
     } catch (error) {
-      if (axios.isCancel(error) || error.name === "CanceledError") return;
       console.error("Medicine Load Error:", error);
-      if (!cached) {
-        setMedicines([]);
-        setTotalPages(1);
-      }
     } finally {
       setLoading(false);
       setIsSyncing(false);
@@ -259,27 +107,76 @@ const AllMedicine = () => {
   };
 
   useEffect(() => {
-    const isReturningFromEdit = Boolean(lastEditedId);
-    loadMedicine(isReturningFromEdit);
-  }, [debouncedSearch, company, sort, page]);
+    fetchAllMedicines(true);
+  }, []);
 
-  // =========================================================================
-  // ৬. এডিট করার পর স্বয়ংক্রিয়ভাবে সেই ওষুধে স্ক্রল ও হাইলাইট (Auto-Scroll & Glow)
-  // =========================================================================
+  // ৩. লাইভ ফিল্টারিং ও শর্টিং (সকল মেডিসিনের ওপর কাজ করবে)
+  const filteredMedicines = useMemo(() => {
+    let result = [...allMedicines];
+
+    // কোম্পানি ফিল্টার
+    if (company) {
+      const compLower = company.toLowerCase();
+      result = result.filter(
+        (m) =>
+          (m.company || "").toLowerCase() === compLower ||
+          (compLower === "ibnsina" &&
+            (m.company || "").toLowerCase().includes("ibn")),
+      );
+    }
+
+    // সার্চ ফিল্টার
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(
+        (m) =>
+          (m.medicineName || "").toLowerCase().includes(q) ||
+          (m.genericName || "").toLowerCase().includes(q) ||
+          (m.company || "").toLowerCase().includes(q),
+      );
+    }
+
+    // সর্টিং (A-Z / Z-A)
+    result.sort((a, b) => {
+      const nameA = (a.medicineName || "").toLowerCase();
+      const nameB = (b.medicineName || "").toLowerCase();
+      if (sort === "asc") return nameA.localeCompare(nameB);
+      return nameB.localeCompare(nameA);
+    });
+
+    return result;
+  }, [allMedicines, company, search, sort]);
+
+  // ৪. পেজিনেশন ক্যালকুলেশন
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredMedicines.length / itemsPerPage),
+  );
+
+  // বর্তমান পেজের মেডিসিন স্লাইস
+  const displayedMedicines = useMemo(() => {
+    const start = (page - 1) * itemsPerPage;
+    return filteredMedicines.slice(start, start + itemsPerPage);
+  }, [filteredMedicines, page, itemsPerPage]);
+
+  // পেজ অ্যাডজাস্টমেন্ট
   useEffect(() => {
-    if (!lastEditedId || medicines.length === 0) return;
+    if (page > totalPages) {
+      setPage(1);
+    }
+  }, [totalPages]);
+
+  // এডিট করার পর স্বয়ংক্রিয় স্ক্রল ও হাইলাইট
+  useEffect(() => {
+    if (!lastEditedId || displayedMedicines.length === 0) return;
 
     const timer = setTimeout(() => {
       const targetElement = document.getElementById(
         "medicine-row-" + lastEditedId,
       );
       if (targetElement) {
-        targetElement.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
 
-        // ৫ সেকেন্ড পর হাইলাইট আস্তে আস্তে মুছে দেওয়া
         const clearTimer = setTimeout(() => {
           setLastEditedId(null);
           sessionStorage.removeItem("novacare_admin_last_edited_id");
@@ -290,20 +187,16 @@ const AllMedicine = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [medicines, lastEditedId]);
+  }, [displayedMedicines, lastEditedId]);
 
-  // =========================
-  // COMPANY FILTER
-  // =========================
+  // ফিল্টার হ্যান্ডলার
   const handleCompanyChange = (companyValue) => {
     setCompany(companyValue);
     setPage(1);
   };
 
-  // সার্চ ও ফিল্টার ক্লিয়ার বাটন
   const handleClearFilters = () => {
     setSearch("");
-    setDebouncedSearch("");
     setCompany("");
     setPage(1);
     sessionStorage.removeItem("novacare_admin_med_search");
@@ -311,9 +204,7 @@ const AllMedicine = () => {
     sessionStorage.removeItem("novacare_admin_med_page");
   };
 
-  // =========================
-  // DELETE MEDICINE
-  // =========================
+  // ডিলিট হ্যান্ডলার
   const handleDelete = async (id) => {
     const result = await Swal.fire({
       title: "Are you sure?",
@@ -327,14 +218,12 @@ const AllMedicine = () => {
 
     if (!result.isConfirmed) return;
 
-    const previousMedicines = [...medicines];
-    setMedicines((prev) => prev.filter((item) => item._id !== id));
+    const previousMedicines = [...allMedicines];
+    setAllMedicines((prev) => prev.filter((item) => item._id !== id));
 
     try {
-      const response = await axios.delete(API + "/api/medicines/" + id);
-
+      const response = await axios.delete(`${API}/api/medicines/${id}`);
       if (response.data?.success) {
-        MEMORY_CACHE.clear();
         Swal.fire({
           icon: "success",
           title: "Deleted!",
@@ -342,9 +231,8 @@ const AllMedicine = () => {
           timer: 1200,
           showConfirmButton: false,
         });
-        loadMedicine(true);
       } else {
-        setMedicines(previousMedicines);
+        setAllMedicines(previousMedicines);
         Swal.fire({
           icon: "error",
           title: "Error",
@@ -353,7 +241,7 @@ const AllMedicine = () => {
       }
     } catch (error) {
       console.error("Delete Medicine Error:", error);
-      setMedicines(previousMedicines);
+      setAllMedicines(previousMedicines);
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -362,9 +250,7 @@ const AllMedicine = () => {
     }
   };
 
-  // =========================================================================
-  // ৭. কুইক এডিট মোডাল ওপেন ও সেভ (পেজ ত্যাগ না করেই দ্রুত এডিট)
-  // =========================================================================
+  // কুইক এডিট হ্যান্ডলার
   const handleOpenQuickEdit = (med) => {
     setQuickEditMed(med);
     const purchase = Number(med.purchasePrice || 0);
@@ -424,32 +310,28 @@ const AllMedicine = () => {
       };
 
       const res = await axios.put(
-        API + "/api/medicines/" + quickEditMed._id,
+        `${API}/api/medicines/${quickEditMed._id}`,
         payload,
       );
 
       if (res.data?.success || res.status === 200) {
-        setMedicines((prev) =>
+        setAllMedicines((prev) =>
           prev.map((item) =>
             item._id === quickEditMed._id ? { ...item, ...payload } : item,
           ),
         );
 
-        MEMORY_CACHE.clear();
-
-        // এডিট হওয়া ওষুধে আইডি সেট করা
         setLastEditedId(quickEditMed._id);
         sessionStorage.setItem(
           "novacare_admin_last_edited_id",
           quickEditMed._id,
         );
-
         setQuickEditMed(null);
 
         Swal.fire({
           icon: "success",
           title: "আপডেট সফল হয়েছে!",
-          text: payload.medicineName + " এর তথ্য সেভ হয়েছে।",
+          text: `${payload.medicineName} এর তথ্য সেভ হয়েছে।`,
           timer: 1600,
           showConfirmButton: false,
         });
@@ -472,17 +354,6 @@ const AllMedicine = () => {
     }
   };
 
-  // =========================
-  // PAGINATION HANDLERS
-  // =========================
-  const handlePrevious = () => {
-    if (page > 1) setPage((prev) => prev - 1);
-  };
-
-  const handleNext = () => {
-    if (page < totalPages) setPage((prev) => prev + 1);
-  };
-
   return (
     <div className="p-4 md:p-6 min-h-screen bg-slate-50">
       {/* HEADER */}
@@ -492,6 +363,9 @@ const AllMedicine = () => {
             <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
               All Medicines
             </h1>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+              মোট: {filteredMedicines.length} টি
+            </span>
             {isSyncing && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-600 border border-blue-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-ping"></span>
@@ -504,12 +378,23 @@ const AllMedicine = () => {
           </p>
         </div>
 
-        <Link
-          to="/dashboard/add-medicine"
-          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition"
-        >
-          <span>+ Add Medicine</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fetchAllMedicines(false)}
+            className="px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5"
+            title="ডাটাবেজ রিফ্রেশ"
+          >
+            <span>🔄</span>
+            <span>Refresh</span>
+          </button>
+          <Link
+            to="/dashboard/add-medicine"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition"
+          >
+            <span>+ Add Medicine</span>
+          </Link>
+        </div>
       </div>
 
       {/* COMPANY FILTER BUTTONS */}
@@ -546,8 +431,11 @@ const AllMedicine = () => {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Type medicine, company, or generic name to search instantly..."
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Type medicine, company, or generic name to search instantly (e.g. Rosuva, Napa, Ace)..."
               className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
             />
             <span className="absolute left-3.5 top-3 text-slate-400 text-xs">
@@ -556,7 +444,10 @@ const AllMedicine = () => {
             {search && (
               <button
                 type="button"
-                onClick={() => setSearch("")}
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
                 className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-700 bg-slate-200/80 rounded-full h-5 w-5 flex items-center justify-center"
               >
                 ✕
@@ -577,13 +468,29 @@ const AllMedicine = () => {
               <option value="desc">Z → A</option>
             </select>
 
+            {/* পেজ প্রতি কত আইটেম দেখাবে */}
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setPage(1);
+              }}
+              className="w-full md:w-auto px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+            >
+              <option value={10}>10 / page</option>
+              <option value={15}>15 / page</option>
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+            </select>
+
             {(search || company) && (
               <button
                 type="button"
                 onClick={handleClearFilters}
                 className="whitespace-nowrap px-3 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold hover:bg-rose-100 transition"
               >
-                Reset Search
+                Reset
               </button>
             )}
           </div>
@@ -596,7 +503,8 @@ const AllMedicine = () => {
           {search && (
             <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-xl font-bold">
               <span>
-                সার্চ কিওয়ার্ড: <b>&quot;{search}&quot;</b>
+                সার্চ: <b>&quot;{search}&quot;</b> ({filteredMedicines.length}{" "}
+                টি পাওয়া গেছে)
               </span>
               <button
                 type="button"
@@ -660,34 +568,31 @@ const AllMedicine = () => {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {loading && medicines.length === 0 ? (
+              {loading ? (
                 <tr>
                   <td colSpan="10" className="text-center py-12">
                     <div className="flex flex-col justify-center items-center gap-2">
                       <div className="w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
                       <span className="text-xs font-bold text-slate-400">
-                        Loading medicines...
+                        Loading all medicines...
                       </span>
                     </div>
                   </td>
                 </tr>
-              ) : medicines.length === 0 ? (
+              ) : displayedMedicines.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="text-center py-12 text-slate-400">
                     <p className="text-base font-bold text-slate-600">
                       No medicines found.
                     </p>
-                    {company && (
-                      <p className="text-xs text-slate-400 mt-1">
-                        এই company-এর কোনো medicine পাওয়া যায়নি।
-                      </p>
-                    )}
+                    <p className="text-xs text-slate-400 mt-1">
+                      অন্য কোনো ফিল্টার বা সার্চ দিয়ে চেষ্টা করুন।
+                    </p>
                   </td>
                 </tr>
               ) : (
-                medicines.map((medicine, index) => {
+                displayedMedicines.map((medicine, index) => {
                   const purchasePrice = Number(medicine.purchasePrice || 0);
-
                   const rawMrp = Number(
                     medicine.mrpePrice ?? medicine.mrp ?? 0,
                   );
@@ -730,7 +635,6 @@ const AllMedicine = () => {
                           )
                         : mrpPrice;
 
-                  // এডিট করা মেডিসিন কিনা চেক
                   const isJustEdited = medicine._id === lastEditedId;
 
                   return (
@@ -745,7 +649,7 @@ const AllMedicine = () => {
                       }
                     >
                       <td className="px-4 py-3.5 text-slate-400 font-medium">
-                        {(page - 1) * limit + index + 1}
+                        {(page - 1) * itemsPerPage + index + 1}
                       </td>
 
                       <td className="px-4 py-3.5">
@@ -836,7 +740,6 @@ const AllMedicine = () => {
 
                       <td className="px-4 py-3.5 text-center">
                         <div className="flex justify-center items-center gap-1.5">
-                          {/* ১. কুইক এডিট বাটন */}
                           <button
                             type="button"
                             onClick={() => handleOpenQuickEdit(medicine)}
@@ -846,7 +749,6 @@ const AllMedicine = () => {
                             Quick Edit
                           </button>
 
-                          {/* ২. ফুল পেজ এডিট লিংক (বর্তমান সার্চ ও পেজ সহ যাবে) */}
                           <Link
                             to={"/dashboard/update-medicine/" + medicine._id}
                             state={{
@@ -855,28 +757,6 @@ const AllMedicine = () => {
                               page,
                               sort,
                               lastEditedId: medicine._id,
-                            }}
-                            onClick={() => {
-                              sessionStorage.setItem(
-                                "novacare_admin_med_search",
-                                search,
-                              );
-                              sessionStorage.setItem(
-                                "novacare_admin_med_company",
-                                company,
-                              );
-                              sessionStorage.setItem(
-                                "novacare_admin_med_page",
-                                String(page),
-                              );
-                              sessionStorage.setItem(
-                                "novacare_admin_med_sort",
-                                sort,
-                              );
-                              sessionStorage.setItem(
-                                "novacare_admin_last_edited_id",
-                                medicine._id,
-                              );
                             }}
                             className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition"
                           >
@@ -900,45 +780,59 @@ const AllMedicine = () => {
           </table>
         </div>
 
-        {/* PAGINATION */}
-        {medicines.length > 0 && (
+        {/* PAGINATION (এখন সম্পূর্ণ সক্রিয় ও কাজ করবে) */}
+        {filteredMedicines.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100 bg-slate-50/50">
             <p className="text-xs text-slate-500">
-              Page <b className="text-slate-800">{page}</b> of{" "}
-              <b className="text-slate-800">{totalPages}</b>
+              Showing{" "}
+              <b className="text-slate-800">{(page - 1) * itemsPerPage + 1}</b>{" "}
+              to{" "}
+              <b className="text-slate-800">
+                {Math.min(page * itemsPerPage, filteredMedicines.length)}
+              </b>{" "}
+              of <b className="text-slate-800">{filteredMedicines.length}</b>{" "}
+              medicines
             </p>
 
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={handlePrevious}
+                onClick={() => setPage(1)}
                 disabled={page === 1}
-                className={
-                  "px-3 py-1.5 rounded-xl border text-xs font-bold transition " +
-                  (page === 1
-                    ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100")
-                }
+                className="px-2.5 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+              >
+                First
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
               >
                 Previous
               </button>
 
               <span className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-black">
-                {page}
+                {page} / {totalPages}
               </span>
 
               <button
                 type="button"
-                onClick={handleNext}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className={
-                  "px-3 py-1.5 rounded-xl border text-xs font-bold transition " +
-                  (page >= totalPages
-                    ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100")
-                }
+                className="px-3 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
               >
                 Next
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages}
+                className="px-2.5 py-1.5 rounded-xl border text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+              >
+                Last
               </button>
             </div>
           </div>
