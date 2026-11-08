@@ -35,6 +35,7 @@ import MrpCalculator from "../pages/Dashboard/Admin/MrpCalculator";
 import OrderList from "../pages/Dashboard/Admin/OrderList";
 import NewProducts from "../components/Headline/NewProducts";
 import StockOut from "../pages/Dashboard/Admin/StockOut";
+import Stock from "../pages/Dashboard/Admin/Stock";
 // import Unauthorized from "./pages/Unauthorized";
 // import Unauthorized from "./pages/Unauthorized";
 const router = createBrowserRouter([
@@ -134,6 +135,10 @@ const router = createBrowserRouter([
       {
         path: "stockout",
         element: <StockOut />,
+      },
+      {
+        path: "stock",
+        element: <Stock />,
       },
       {
         path: "update-medicine/:id",

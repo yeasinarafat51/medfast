@@ -34,22 +34,21 @@ function AddMedicine({ onMedicineAdded }) {
     defaultValues: {
       category: "Tablet",
       dosageForm: "Tablet",
-      image:
-        "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=60",
+      image: "", // ⚡ ছবি ডিফল্টভাবে খালি থাকবে
     },
   });
 
   const image = watch("image");
 
-  // =========================
-  // PRICE & STOCK STATES
-  // =========================
-  const [mrpePrice, setMrpePrice] = useState("120.00");
-  const [bikriPercent, setBikriPercent] = useState("12.5");
-  const [purchasePrice, setPurchasePrice] = useState("85.00");
-  const [profitPercent, setProfitPercent] = useState("23.5");
-  const [stock, setStock] = useState("100");
-  const [boxQuantity, setBoxQuantity] = useState("10");
+  // ==========================================
+  // PRICE & STOCK STATES (আগে থেকে সম্পূর্ণ খালি)
+  // ==========================================
+  const [mrpePrice, setMrpePrice] = useState("");
+  const [bikriPercent, setBikriPercent] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [profitPercent, setProfitPercent] = useState("");
+  const [stock, setStock] = useState("");
+  const [boxQuantity, setBoxQuantity] = useState("");
 
   // Slider & New Arrival Switches
   const [showInSlider, setShowInSlider] = useState(true);
@@ -66,7 +65,8 @@ function AddMedicine({ onMedicineAdded }) {
   const stockNumber = parseInt(stock, 10) || 0;
 
   // Selling Price = MRP - (MRP * Bikri% / 100)
-  const sellingPrice = mrpNumber - (mrpNumber * bikriNumber) / 100;
+  const sellingPrice =
+    mrpNumber > 0 ? mrpNumber - (mrpNumber * bikriNumber) / 100 : 0;
   const unitProfit =
     sellingPrice > purchaseNumber ? sellingPrice - purchaseNumber : 0;
   const estimatedTotalProfit = unitProfit * stockNumber;
@@ -184,7 +184,17 @@ function AddMedicine({ onMedicineAdded }) {
       });
 
       // ফর্ম রিসেট
-      reset();
+      reset({
+        medicineName: "",
+        genericName: "",
+        company: "",
+        category: "Tablet",
+        dosageForm: "Tablet",
+        strength: "",
+        expireDate: "",
+        image: "",
+        description: "",
+      });
       setPurchasePrice("");
       setMrpePrice("");
       setBikriPercent("");
@@ -399,8 +409,8 @@ function AddMedicine({ onMedicineAdded }) {
                   onChange={(e) =>
                     handleDecimalChange(e.target.value, setMrpePrice)
                   }
-                  placeholder="120.00"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                  placeholder="যেমন: 120.00"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 placeholder:text-slate-400 placeholder:font-normal"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
                   উদাহরণ: 120.00 বা 55.50
@@ -419,8 +429,8 @@ function AddMedicine({ onMedicineAdded }) {
                   onChange={(e) =>
                     handleDecimalChange(e.target.value, setBikriPercent)
                   }
-                  placeholder="12.5"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                  placeholder="যেমন: 12.5"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 placeholder:text-slate-400 placeholder:font-normal"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
                   উদাহরণ: 10% বা 12.5%
@@ -440,8 +450,8 @@ function AddMedicine({ onMedicineAdded }) {
                   onChange={(e) =>
                     handleDecimalChange(e.target.value, setPurchasePrice)
                   }
-                  placeholder="85.00"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="যেমন: 85.00"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 placeholder:text-slate-400 placeholder:font-normal"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
                   কোম্পানি ইনভয়েস রেট
@@ -461,8 +471,8 @@ function AddMedicine({ onMedicineAdded }) {
                   onChange={(e) => {
                     if (/^\d*$/.test(e.target.value)) setStock(e.target.value);
                   }}
-                  placeholder="100"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                  placeholder="যেমন: 100"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
 
@@ -479,8 +489,8 @@ function AddMedicine({ onMedicineAdded }) {
                     if (/^\d*$/.test(e.target.value))
                       setBoxQuantity(e.target.value);
                   }}
-                  placeholder="10"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                  placeholder="যেমন: 10"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
 
@@ -496,8 +506,8 @@ function AddMedicine({ onMedicineAdded }) {
                   onChange={(e) =>
                     handleDecimalChange(e.target.value, setProfitPercent)
                   }
-                  placeholder="23.5"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="যেমন: 23.5"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 font-mono font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
             </div>
@@ -518,8 +528,7 @@ function AddMedicine({ onMedicineAdded }) {
                     </span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">
-                    হিসাব: MRP (৳{mrpNumber.toFixed(2)}) − {bikriNumber}% বিক্রি
-                    ছাড়
+                    হিসাব: MRP − বিক্রি ছাড় %
                   </p>
                 </div>
 
@@ -533,8 +542,7 @@ function AddMedicine({ onMedicineAdded }) {
                     </span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">
-                    বিক্রয় ৳{sellingPrice.toFixed(2)} − ক্রয় ৳
-                    {purchaseNumber.toFixed(2)}
+                    বিক্রয় মূল্য − ক্রয় মূল্য
                   </p>
                 </div>
 

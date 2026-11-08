@@ -319,6 +319,14 @@ function Dashboard() {
                 <span>Stockout</span>
               </NavLink>
               <NavLink
+                to="/dashboard/stock"
+                className={menuClass}
+                onClick={closeSidebar}
+              >
+                <FaClipboardList className="text-base" />
+                <span>Stock</span>
+              </NavLink>
+              <NavLink
                 to="/dashboard/mrp-calculator"
                 className={menuClass}
                 onClick={closeSidebar}
