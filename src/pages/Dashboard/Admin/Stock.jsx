@@ -16,7 +16,7 @@ import {
 
 // আপনার ব্যাকএন্ড API এর URL
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 // ডিফল্ট মেডিসিন ইমেজ প্লেসহোল্ডার

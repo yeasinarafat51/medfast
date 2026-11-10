@@ -82,7 +82,7 @@ function Register() {
       // ========================================
 
       await axios.post(
-        " https://medpharm-server-3.onrender.com/api/users",
+        " http://localhost:5000/api/users",
         {
           name: data.name.trim(),
           address: data.address.trim(),

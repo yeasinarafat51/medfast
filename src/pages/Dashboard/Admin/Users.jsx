@@ -47,7 +47,7 @@ function Users() {
       }
 
       const res = await axios.get(
-        ` https://medpharm-server-3.onrender.com/api/users?search=${encodeURIComponent(
+        ` http://localhost:5000/api/users?search=${encodeURIComponent(
           search.trim(),
         )}&page=${page}&limit=${limit}&sort=${sort}`,
       );
@@ -125,7 +125,7 @@ function Users() {
       if (!result.isConfirmed) return;
 
       const res = await axios.patch(
-        ` https://medpharm-server-3.onrender.com/api/users/${id}/role`,
+        ` http://localhost:5000/api/users/${id}/role`,
         {
           role: nextRole,
         },
@@ -176,9 +176,7 @@ function Users() {
     if (!result.isConfirmed) return;
 
     try {
-      const res = await axios.delete(
-        ` https://medpharm-server-3.onrender.com/api/users/${id}`,
-      );
+      const res = await axios.delete(` http://localhost:5000/api/users/${id}`);
 
       if (res.data.success) {
         await Swal.fire({

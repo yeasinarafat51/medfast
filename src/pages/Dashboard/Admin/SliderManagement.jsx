@@ -18,7 +18,7 @@ import {
 import useAuth from "../../../hooks/useAuth";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 // এক ক্লিকে ব্যবহারের জন্য হাই-কোয়ালিটি ব্যানার লিংক

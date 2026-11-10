@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import useAuth from "../hooks/useAuth";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || " https://medpharm-server-3.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || " http://localhost:5000";
 
 function AdminRoute({ children, allowedRoles = ["admin", "super-admin"] }) {
   const { user, loading } = useAuth();

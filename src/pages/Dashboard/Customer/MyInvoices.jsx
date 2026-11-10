@@ -15,7 +15,7 @@ function MyInvoices() {
 
       try {
         const res = await axios.get(
-          ` https://medpharm-server-3.onrender.com/api/orders/my-orders/${user.email}`,
+          ` http://localhost:5000/api/orders/my-orders/${user.email}`,
         );
 
         if (res.data.success) {

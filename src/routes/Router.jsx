@@ -21,7 +21,7 @@ import DashboardHome from "../pages/Dashboard/Admin/DashboardHome";
 import Users from "../pages/Dashboard/Admin/Users";
 import SalesReport from "../pages/Dashboard/Admin/SalesReport";
 import ProfitReport from "../pages/Dashboard/ProfitReport";
-import AdminRoute from "./AdminRoute";
+// import AdminRoute from "./AdminRoute";
 // import SpecialOfferManagement from "../pages/SpecialOfferManagement";
 import MyInvoices from "../pages/Dashboard/Customer/MyInvoices";
 import InvoiceDetails from "../pages/Dashboard/Customer/InvoiceDetails";
@@ -105,11 +105,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/dashboard",
-    element: (
-      <AdminRoute>
-        <Dashboard />
-      </AdminRoute>
-    ),
+    element: <Dashboard />,
     children: [
       {
         index: true,

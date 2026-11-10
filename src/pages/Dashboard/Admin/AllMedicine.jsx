@@ -3,9 +3,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Link, useLocation } from "react-router-dom";
 
-const API = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
-).trim();
+const API = (import.meta.env.VITE_API_URL || "http://localhost:5000").trim();
 
 const companies = [
   { name: "All Medicines", value: "" },

@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 // উচ্চমানের ডিফল্ট ব্যানার (যদি ডাটাবেস লোড হতে সময় নেয় বা খালি থাকে)

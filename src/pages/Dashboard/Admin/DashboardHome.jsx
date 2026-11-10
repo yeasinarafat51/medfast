@@ -24,7 +24,7 @@ function DashboardHome() {
       setLoading(true);
 
       const res = await axios.get(
-        " https://medpharm-server-3.onrender.com/api/dashboard/admin-stats",
+        " http://localhost:5000/api/dashboard/admin-stats",
       );
 
       setStats(res.data);

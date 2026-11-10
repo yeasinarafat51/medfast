@@ -21,7 +21,7 @@ import {
 
 // NovaCare BD লাইভ মেডিসিন এপিআই
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 // কুইক ডিসকাউন্ট পার্সেন্টেজ প্রিসেট

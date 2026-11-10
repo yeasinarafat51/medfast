@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 // ডিফল্ট শিরোনাম টেক্সট

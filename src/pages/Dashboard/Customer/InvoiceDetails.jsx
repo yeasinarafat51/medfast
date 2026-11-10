@@ -4,7 +4,7 @@ import axios from "axios";
 import jsPDF from "jspdf";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 const ORDERS_CACHE_KEY = "novacare_orders_cache_v1";

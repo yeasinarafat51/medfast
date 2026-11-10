@@ -3,7 +3,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 
-const API = "https://medpharm-server-3.onrender.com";
+const API = "http://localhost:5000";
 
 const companies = [
   "Square",

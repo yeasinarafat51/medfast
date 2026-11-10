@@ -15,8 +15,7 @@ import {
 } from "react-icons/fa";
 import useAuth from "../../hooks/useAuth";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const ProfitReport = () => {
   const { user, loading: authLoading } = useAuth();

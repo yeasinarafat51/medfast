@@ -25,7 +25,7 @@ import {
 import useAuth from "../../../hooks/useAuth";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 const CACHE_KEY = "novacare_admin_orders_cache_v3";

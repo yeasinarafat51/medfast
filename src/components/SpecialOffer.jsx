@@ -3,7 +3,7 @@ import axios from "axios";
 import { FaClock, FaTag, FaShoppingCart } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
-const API_URL = " https://medpharm-server-3.onrender.com";
+const API_URL = " http://localhost:5000";
 
 const SpecialOffer = () => {
   const [offers, setOffers] = useState([]);

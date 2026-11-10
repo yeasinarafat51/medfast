@@ -44,7 +44,7 @@ function Navbar() {
 
       try {
         const res = await axios.get(
-          `https://medpharm-server-3.onrender.com/api/users/email/${user.email}`,
+          `http://localhost:5000/api/users/email/${user.email}`,
         );
 
         if (res.data.success) {
@@ -196,7 +196,9 @@ function Navbar() {
             <NavLink to="/" className={navLinkClass}>
               Home
             </NavLink>
-
+            <NavLink to="/dashboard/order-list" className={navLinkClass}>
+              Dashboard
+            </NavLink>
             <NavLink to="/allproduct" className={navLinkClass}>
               Medicines
             </NavLink>
@@ -207,11 +209,11 @@ function Navbar() {
               </NavLink>
             )}
 
-            {(role === "admin" || role === "super-admin") && (
+            {/* {(role === "admin" || role === "super-admin") && (
               <NavLink to="/dashboard/order-list" className={navLinkClass}>
                 Dashboard
               </NavLink>
-            )}
+            )} */}
 
             <a
               href={APK_DOWNLOAD_URL}

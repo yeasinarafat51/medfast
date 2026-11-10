@@ -14,7 +14,7 @@ import useCart from "../../hooks/useCart";
 import medisin from "../../imges/medpharm_pharmacy.jpg";
 
 const API_URL = (
-  import.meta.env.VITE_API_URL || "https://medpharm-server-3.onrender.com"
+  import.meta.env.VITE_API_URL || "http://localhost:5000"
 ).trim();
 
 // Fallback in-stock medicines when offline
